@@ -39,3 +39,4 @@
 2024-06-14T17:29:19  perf(tests): add type hints to the public API
 2024-06-27T12:46:26  test: strengthen coverage
 2024-07-10T19:03:33  chore(report): trim whitespace in parsed fields
+2024-08-11T14:20:40  refactor(ci): handle empty and malformed input
