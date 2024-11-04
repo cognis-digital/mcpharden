@@ -44,3 +44,4 @@
 2024-09-07T16:54:54  ci(fixtures): add usage examples to help
 2024-09-20T11:11:01  docs(deps): skip binary files by sniffing
 2024-10-21T18:28:08  perf(detect): document the config keys
+2024-11-04T13:45:15  style(fixtures): add type hints to the public API
