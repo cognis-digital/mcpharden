@@ -51,3 +51,4 @@
 2025-01-15T17:53:43  style(engine): add a JSON schema for output
 2025-01-29T12:10:50  build(tests): add usage examples to help
 2025-03-01T19:27:57  perf: speed. I am speed.
+2025-03-15T14:44:04  docs(scoring): add a fast path for the common case
