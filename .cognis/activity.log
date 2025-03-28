@@ -52,3 +52,4 @@
 2025-01-29T12:10:50  build(tests): add usage examples to help
 2025-03-01T19:27:57  perf: speed. I am speed.
 2025-03-15T14:44:04  docs(scoring): add a fast path for the common case
+2025-03-28T09:01:11  perf(rules): add color + severity icons
