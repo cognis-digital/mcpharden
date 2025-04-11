@@ -53,3 +53,4 @@
 2025-03-01T19:27:57  perf: speed. I am speed.
 2025-03-15T14:44:04  docs(scoring): add a fast path for the common case
 2025-03-28T09:01:11  perf(rules): add color + severity icons
+2025-04-11T16:18:18  style(report): wire the MCP tool schema
