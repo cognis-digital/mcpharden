@@ -55,3 +55,4 @@
 2025-03-28T09:01:11  perf(rules): add color + severity icons
 2025-04-11T16:18:18  style(report): wire the MCP tool schema
 2025-05-13T11:35:25  docs: standing on the shoulders of giants (garak, sigma, trufflehog)
+2025-05-26T18:52:32  refactor(rules): clarify the README quickstart
