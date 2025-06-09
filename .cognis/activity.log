@@ -56,3 +56,4 @@
 2025-04-11T16:18:18  style(report): wire the MCP tool schema
 2025-05-13T11:35:25  docs: standing on the shoulders of giants (garak, sigma, trufflehog)
 2025-05-26T18:52:32  refactor(rules): clarify the README quickstart
+2025-06-09T13:09:39  perf(output): extract the scorer
