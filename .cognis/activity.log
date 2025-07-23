@@ -58,3 +58,4 @@
 2025-05-26T18:52:32  refactor(rules): clarify the README quickstart
 2025-06-09T13:09:39  perf(output): extract the scorer
 2025-06-22T08:26:46  style(deps): reduce false positives on edge cases
+2025-07-23T15:43:53  build(detect): guard against ReDoS in patterns
