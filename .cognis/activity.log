@@ -64,3 +64,4 @@
 2025-09-20T12:34:14  ci(format): wire the MCP tool schema
 2025-10-04T19:51:21  feat(core): simplify the walker
 2025-10-17T14:08:28  docs: ELI5 pass
+2025-10-31T09:25:35  refactor(tests): load rules lazily for faster startup
