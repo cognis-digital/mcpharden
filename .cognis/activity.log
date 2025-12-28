@@ -67,3 +67,4 @@
 2025-10-31T09:25:35  refactor(tests): load rules lazily for faster startup
 2025-12-01T16:42:42  build(cli): reduce false positives on edge cases
 2025-12-15T11:59:49  fix(io): guard against ReDoS in patterns
+2025-12-28T18:16:56  fix: handle empty input gracefully
