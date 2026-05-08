@@ -74,3 +74,4 @@
 2026-03-11T10:24:24  chore: NULLBYTE nightly sweep
 2026-04-11T17:41:31  perf(fixtures): load rules lazily for faster startup
 2026-04-24T12:58:38  style(parser): add pagination to large reports
+2026-05-08T19:15:45  build(config): pin the test dependencies
