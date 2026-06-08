@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: mcpharden, labels: { app: mcpharden } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mcpharden } }
+  template:
+    metadata: { labels: { app: mcpharden } }
+    spec:
+      containers:
+        - name: mcpharden
+          image: ghcr.io/cognis-digital/mcpharden:latest
+          ports: [{ containerPort: 8000 }]
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: mcpharden }
+spec:
+  selector: { app: mcpharden }
+  ports: [{ port: 80, targetPort: 8000 }]
