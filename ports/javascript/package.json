@@ -1,0 +1,10 @@
+{
+  "name": "@cognis/mcpharden",
+  "version": "0.2.0",
+  "description": "JavaScript port of mcpharden (Cognis Neural Suite)",
+  "bin": {
+    "mcpharden": "index.js"
+  },
+  "license": "LicenseRef-COCL-1.0",
+  "type": "module"
+}
