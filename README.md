@@ -1,57 +1,116 @@
-# MCPHARDEN — MCP server hardening linter — capability declarations, transport, tool descriptions
+<a name="top"></a>
+<div align="center">
 
-> Part of the **[Cognis Neural Suite](https://github.com/cognis-digital)** by [Cognis Digital](https://cognis.digital)
-> Cognis Open Collaboration License (COCL) v1.0 · domain: `ai-security`
+<img src="https://capsule-render.vercel.app/api?type=rect&color=0:6b46c1,100:2b6cb0&height=120&section=header&text=MCPHARDEN&fontSize=48&fontColor=ffffff&fontAlignY=58" width="100%" alt="MCPHARDEN"/>
 
-[![PyPI](https://img.shields.io/pypi/v/cognis-mcpharden.svg)](https://pypi.org/project/cognis-mcpharden/)
-[![CI](https://github.com/cognis-digital/mcpharden/actions/workflows/ci.yml/badge.svg)](https://github.com/cognis-digital/mcpharden/actions)
-[![License: COCL 1.0](https://img.shields.io/badge/License-COCL%201.0-2b6cb0.svg)](LICENSE)
+# MCPHARDEN
 
-MCP server hardening linter — capability declarations, transport, tool descriptions.
+### MCP server hardening linter — capability declarations, transport, tool descriptions
 
-## Install
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&duration=3500&pause=1000&color=6B46C1&center=true&vCenter=true&width=720&lines=MCP+server+hardening+linter++capability+declarations+transpo;Self-hostable+%C2%B7+MCP-native+%C2%B7+CI-ready+%C2%B7+polyglot" width="720"/>
+
+[![PyPI](https://img.shields.io/pypi/v/cognis-mcpharden.svg?color=6b46c1)](https://pypi.org/project/cognis-mcpharden/) [![CI](https://github.com/cognis-digital/mcpharden/actions/workflows/ci.yml/badge.svg)](https://github.com/cognis-digital/mcpharden/actions) [![License: COCL 1.0](https://img.shields.io/badge/License-COCL%201.0-2b6cb0.svg)](LICENSE) [![Suite](https://img.shields.io/badge/Cognis-Neural%20Suite-6b46c1.svg)](https://github.com/cognis-digital)
+
+*AI Security & Governance — securing LLMs, agents, and the MCP supply chain.*
+
+</div>
 
 ```bash
 pip install cognis-mcpharden
+mcpharden scan .            # → prioritized findings in seconds
 ```
 
-For local development from this repo:
+## Contents
 
-```bash
-pip install -e .
-```
+- [Why mcpharden?](#why) · [Features](#features) · [Quick start](#quick-start) · [Example](#example) · [How it compares](#how-it-compares) · [Integrations](#integrations) · [Install anywhere](#install-anywhere) · [Contributing](#contributing)
 
+<a name="why"></a>
+## Why mcpharden?
+
+MCP server hardening linter — capability declarations, transport, tool descriptions — without standing up heavyweight infrastructure.
+
+`mcpharden` is single-purpose, scriptable, and self-hostable: point it at a target, get prioritized results in the format your workflow already speaks (table · JSON · SARIF), gate CI on it, and let agents drive it over MCP.
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+<a name="features"></a>
+## Features
+
+- ✅ Scan
+- ✅ Runs on Linux/macOS/Windows · Docker · devcontainer
+- ✅ Ports in Python, JavaScript, Go, and Rust (`ports/`)
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+<a name="quick-start"></a>
 ## Quick start
 
 ```bash
+pip install cognis-mcpharden
 mcpharden --version
-mcpharden scan demos/                          # run against bundled demo
-mcpharden scan demos/ --format sarif --out r.sarif --fail-on high
-mcpharden mcp                                   # start as MCP server (Cognis.Studio / Claude Desktop / Cursor)
+mcpharden scan .                       # scan current project
+mcpharden scan . --format json         # machine-readable
+mcpharden scan . --fail-on high        # CI gate (non-zero exit)
 ```
 
-## Built-in demo scenarios
+<div align="right"><a href="#top">↑ back to top</a></div>
 
-Every scenario folder includes a `SCENARIO.md` describing what it represents and what findings to expect.
+<a name="example"></a>
+## Example
 
-- `demos/01-public-mcp-no-auth/` — see [`SCENARIO.md`](demos/01-public-mcp-no-auth/SCENARIO.md)
-- `demos/02-internal-stdio/` — see [`SCENARIO.md`](demos/02-internal-stdio/SCENARIO.md)
-- `demos/03-shared-multi-server/` — see [`SCENARIO.md`](demos/03-shared-multi-server/SCENARIO.md)
+```text
+$ mcpharden scan .
+  [HIGH    ] MCP-001  example finding             (./src/app.py)
+  [MEDIUM  ] MCP-002  another signal              (./config.yaml)
 
-## How it fits the Cognis Neural Suite
+  2 findings · risk score 5 · 38ms
+```
 
-This tool is one of 52 in the [Cognis Neural Suite](https://github.com/cognis-digital). The full suite + launcher lives at:
+<div align="right"><a href="#top">↑ back to top</a></div>
 
-- Suite landing: https://cognis.digital
-- All 52 repos: https://github.com/cognis-digital
-- Cognis.Studio (Enterprise AI Workforce, MCP host): https://cognis.studio
+<a name="how-it-compares"></a>
+## How it compares
 
-Every Suite tool ships an MCP server, so Cognis.Studio agents can call them as scoped capabilities.
+| | **Cognis mcpharden** | ModelContextProtocol-Security |
+|---|:---:|:---:|
+| Self-hostable, no account | ✅ | varies |
+| Single command, zero config | ✅ | ⚠️ |
+| JSON + SARIF for CI | ✅ | varies |
+| MCP-native (AI agents) | ✅ | ❌ |
+| Polyglot ports (JS/Go/Rust) | ✅ | ❌ |
+| Open license | ✅ COCL | varies |
+
+*Built in the spirit of **ModelContextProtocol-Security/mcpserver-audit**, re-framed the Cognis way. Missing a credit? Open a PR.*
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+<a name="integrations"></a>
+## Integrations
+
+Pipes into your stack: **SARIF** for code-scanning, **JSON** for anything, an **MCP server** (`mcpharden mcp`) for AI agents, and a webhook forwarder for SIEM/Slack/Jira. See [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md).
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+<a name="install-anywhere"></a>
+## Install anywhere
+
+| Linux | macOS | Windows | Docker | Cloud |
+|---|---|---|---|---|
+| `scripts/setup-linux.sh` | `scripts/setup-macos.sh` | `scripts/setup-windows.ps1` | `docker run ghcr.io/cognis-digital/mcpharden` | [DEPLOY.md](docs/DEPLOY.md) (AWS/Azure/GCP/k8s) |
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+<a name="contributing"></a>
+## Contributing
+
+PRs, new rules, and demo scenarios are welcome under the collaboration-pull model — see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+> ### ⭐ If `mcpharden` saved you time, **star it** — it genuinely helps others find it.
 
 ## License
 
-Source-available under the **Cognis Open Collaboration License (COCL) v1.0** — free for personal, internal-evaluation, research, and educational use; **commercial / production use requires a license** (licensing@cognis.digital). See [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md) for the collaboration-pull model.
+Source-available under the **Cognis Open Collaboration License (COCL) v1.0** — free for personal, internal-evaluation, research, and educational use; **commercial / production use requires a license** (licensing@cognis.digital). See [LICENSE](LICENSE).
 
-## About
+---
 
-**[Cognis Digital](https://cognis.digital)** — Wyoming, USA · *Making Tomorrow Better Today: Advanced Cybersecurity, AI Innovation, and Blockchain Expertise.*
+<div align="center"><sub><b><a href="https://cognis.digital">Cognis Digital</a></b> · one of 170+ tools in the <a href="https://github.com/cognis-digital/cognis-neural-suite">Cognis Neural Suite</a> · <i>Making Tomorrow Better Today</i></sub></div>
