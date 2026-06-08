@@ -36,7 +36,8 @@ MCP server hardening linter — capability declarations, transport, tool descrip
 <a name="features"></a>
 ## Features
 
-- ✅ Scan
+- ✅ Load Manifest
+- ✅ Audit Manifest
 - ✅ Runs on Linux/macOS/Windows · Docker · devcontainer
 - ✅ Ports in Python, JavaScript, Go, and Rust (`ports/`)
 
