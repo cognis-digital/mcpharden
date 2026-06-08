@@ -1,11 +1,27 @@
-"""
-MCPHARDEN — MCP server hardening linter — capability declarations, transport, tool descriptions
-Part of the Cognis Neural Suite by Cognis Digital.
-https://cognis.digital · MIT License
-"""
-from mcpharden.core import scan, TOOL_NAME, TOOL_VERSION
+"""MCPHARDEN — MCP server hardening linter.
 
-__version__ = TOOL_VERSION
-__author__ = "Cognis Digital"
-__license__ = "MIT"
-__all__ = ["scan", "TOOL_NAME", "TOOL_VERSION", "__version__"]
+Analyzes Model Context Protocol (MCP) server manifests for security
+weaknesses across capability declarations, transport configuration, and
+tool descriptions. Standard library only, zero install.
+"""
+
+from .core import (
+    Finding,
+    Report,
+    audit_manifest,
+    load_manifest,
+    SEVERITY_ORDER,
+)
+
+TOOL_NAME = "mcpharden"
+TOOL_VERSION = "1.0.0"
+
+__all__ = [
+    "Finding",
+    "Report",
+    "audit_manifest",
+    "load_manifest",
+    "SEVERITY_ORDER",
+    "TOOL_NAME",
+    "TOOL_VERSION",
+]
