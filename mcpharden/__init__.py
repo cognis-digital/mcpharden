@@ -1,27 +1,11 @@
-"""MCPHARDEN — MCP server hardening linter.
-
-Analyzes Model Context Protocol (MCP) server manifests for security
-weaknesses across capability declarations, transport configuration, and
-tool descriptions. Standard library only, zero install.
-"""
-
-from .core import (
-    Finding,
-    Report,
-    audit_manifest,
-    load_manifest,
-    SEVERITY_ORDER,
-)
-
-TOOL_NAME = "mcpharden"
-TOOL_VERSION = "1.0.0"
-
-__all__ = [
-    "Finding",
-    "Report",
-    "audit_manifest",
-    "load_manifest",
-    "SEVERITY_ORDER",
-    "TOOL_NAME",
-    "TOOL_VERSION",
-]
+"""mcpharden — part of the Cognis Neural Suite."""
+try:  # re-export the tool's public API + identity from core
+    from mcpharden.core import *  # noqa: F401,F403
+except Exception:  # pragma: no cover
+    pass
+try:
+    from mcpharden.core import TOOL_NAME, TOOL_VERSION
+except Exception:  # pragma: no cover
+    TOOL_NAME = "mcpharden"
+    TOOL_VERSION = "0.1.0"
+__version__ = TOOL_VERSION
