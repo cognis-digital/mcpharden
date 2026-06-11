@@ -1,11 +1,36 @@
-"""mcpharden — part of the Cognis Neural Suite."""
-try:  # re-export the tool's public API + identity from core
-    from mcpharden.core import *  # noqa: F401,F403
-except Exception:  # pragma: no cover
-    pass
-try:
-    from mcpharden.core import TOOL_NAME, TOOL_VERSION
-except Exception:  # pragma: no cover
-    TOOL_NAME = "mcpharden"
-    TOOL_VERSION = "0.1.0"
+"""mcpharden — MCP server hardening linter. Part of the Cognis Neural Suite."""
+
+from mcpharden.core import (
+    TOOL_NAME,
+    TOOL_VERSION,
+    Finding,
+    Report,
+    ManifestError,
+    SEVERITY_ORDER,
+    audit_manifest,
+    audit_path,
+    load_manifest,
+    scan,
+    scan_to_dict,
+    to_sarif,
+    to_html,
+)
+
 __version__ = TOOL_VERSION
+
+__all__ = [
+    "TOOL_NAME",
+    "TOOL_VERSION",
+    "__version__",
+    "Finding",
+    "Report",
+    "ManifestError",
+    "SEVERITY_ORDER",
+    "audit_manifest",
+    "audit_path",
+    "load_manifest",
+    "scan",
+    "scan_to_dict",
+    "to_sarif",
+    "to_html",
+]

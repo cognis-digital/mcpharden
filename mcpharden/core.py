@@ -14,9 +14,14 @@ No network access; everything is computed locally from the manifest.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional
+
+# Tool identity (re-exported from the package __init__).
+TOOL_NAME = "mcpharden"
+TOOL_VERSION = "0.1.3"
 
 # Severity ordering, highest first. Used for sorting + exit-code policy.
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -29,10 +34,33 @@ _DANGEROUS_VERBS = (
     "deploy", "transfer", "send", "pay", "purchase", "sudo", "eval",
 )
 
-# Patterns that look like secrets baked into a manifest.
+# Match dangerous verbs on word boundaries so that, e.g., "pay" does not fire
+# inside "payload", "run" inside "runtime", or "send" inside "sender".
+_DANGEROUS_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(v) for v in _DANGEROUS_VERBS) + r")\b",
+    re.IGNORECASE,
+)
+
+# Patterns that look like secrets baked into a manifest. Two independent
+# strategies, OR'd together:
+#   1. a credential-ish KEY (possibly inside JSON quotes, with a suffix such as
+#      ``upstream_api_key``) assigned a long opaque VALUE, e.g.
+#      ``"upstream_api_key": "sk_live_..."`` — note the closing quote of the
+#      JSON key sits between the keyword and the ``:`` separator;
+#   2. a recognizable high-entropy token PREFIX anywhere (sk_live_, ghp_, AKIA…).
 _SECRET_RE = re.compile(
-    r"(?i)(api[_-]?key|secret|token|password|passwd|bearer|authorization)"
-    r"\s*[:=]\s*[\"']?[A-Za-z0-9_\-./+]{12,}"
+    r"(?i)"
+    # strategy 1: key = value
+    r"(?:[\"']?[A-Za-z0-9_\-]*"
+    r"(?:api[_-]?key|secret|token|password|passwd|bearer|authorization|access[_-]?key)"
+    r"[\"']?\s*[:=]\s*[\"']?[A-Za-z0-9_\-./+]{8,})"
+    # strategy 2: well-known token prefixes
+    r"|(?:\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,})"
+    r"|(?:\bghp_[A-Za-z0-9]{16,})"
+    r"|(?:\bgithub_pat_[A-Za-z0-9_]{20,})"
+    r"|(?:\bxox[baprs]-[A-Za-z0-9\-]{8,})"
+    r"|(?:\bAKIA[0-9A-Z]{12,})"
+    r"|(?:\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{6,})"
 )
 
 
@@ -106,12 +134,46 @@ def load_manifest(path: str) -> Dict[str, Any]:
 # Rule implementations
 # --------------------------------------------------------------------------
 
+def _normalize_transport(m: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce the many real-world transport spellings into one object shape.
+
+    Real manifests express transport as either an object
+    ``{"type": "http", "host": "0.0.0.0", "tls": false, "auth": ...}`` or as a
+    bare string ``"http"`` / ``"stdio"`` with sibling top-level keys such as
+    ``auth``, ``host``, ``tls`` and ``allowed_origins``. Normalize both into a
+    single dict so the rule logic only has to reason about one form.
+    """
+    raw = m.get("transport")
+    norm: Dict[str, Any]
+    if isinstance(raw, dict):
+        norm = dict(raw)
+    elif isinstance(raw, str):
+        norm = {"type": raw}
+    elif raw is None:
+        norm = {}
+    else:
+        # numbers, lists, etc. — genuinely malformed.
+        return {"__malformed__": True}
+
+    # Fold sibling top-level keys in when the object form omits them.
+    for key in ("host", "port", "tls", "auth", "allowed_origins"):
+        if key not in norm and key in m:
+            norm[key] = m[key]
+
+    # "auth": "none"/"" means *no* auth — collapse to a falsey marker so the
+    # no_auth rule fires instead of being silently satisfied by the string.
+    auth = norm.get("auth")
+    if isinstance(auth, str) and auth.strip().lower() in ("", "none", "no", "false", "0"):
+        norm["auth"] = None
+    return norm
+
+
 def _check_transport(m: Dict[str, Any], out: List[Finding]) -> None:
-    transport = m.get("transport") or {}
-    if not isinstance(transport, dict):
+    transport = _normalize_transport(m)
+    if transport.get("__malformed__"):
         out.append(Finding(
             "transport.malformed", "high",
-            "`transport` is present but is not an object.",
+            "`transport` is present but is not an object or a known string.",
             "transport",
             "Declare transport as an object, e.g. {\"type\": \"stdio\"}.",
         ))
@@ -280,8 +342,8 @@ def _check_tools(m: Dict[str, Any], out: List[Finding]) -> None:
             ))
 
         schema = tool.get("inputSchema") or tool.get("input_schema")
-        haystack = (name + " " + desc).lower()
-        dangerous = any(v in haystack for v in _DANGEROUS_VERBS)
+        haystack = name + " " + desc
+        dangerous = bool(_DANGEROUS_RE.search(haystack))
         if dangerous:
             if not schema:
                 out.append(Finding(
@@ -342,3 +404,229 @@ def audit_manifest(manifest: Dict[str, Any], source: str = "<manifest>") -> Repo
     _check_secrets(manifest, findings)
     findings.sort(key=lambda f: (SEVERITY_ORDER.get(f.severity, 99), f.rule))
     return Report(source=source, server_name=name, findings=findings)
+
+
+def audit_path(path: str) -> Report:
+    """Load a single manifest file and audit it."""
+    manifest = load_manifest(path)
+    return audit_manifest(manifest, source=path)
+
+
+def _iter_manifest_files(target: str) -> List[str]:
+    """Resolve ``target`` to a sorted list of candidate manifest JSON files.
+
+    Accepts a single ``.json`` file or a directory (walked recursively). Files
+    named ``package.json`` / ``tsconfig.json`` and anything under ``node_modules``
+    or dot-dirs are skipped so directory scans stay focused on MCP manifests.
+    """
+    if os.path.isfile(target):
+        return [target]
+    if not os.path.isdir(target):
+        raise ManifestError(f"no such file or directory: {target}")
+
+    skip_names = {"package.json", "package-lock.json", "tsconfig.json", "composer.json"}
+    found: List[str] = []
+    for root, dirs, files in os.walk(target):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
+        for fn in files:
+            if fn.lower().endswith(".json") and fn not in skip_names:
+                found.append(os.path.join(root, fn))
+    return sorted(found)
+
+
+def scan(target: str) -> List[Report]:
+    """Audit a file or every manifest in a directory.
+
+    This is the high-level entry point used by the CLI ``scan`` subcommand and
+    by the MCP server. Files that are not valid MCP manifests (bad JSON, wrong
+    root type) are reported as a single ``manifest.unreadable`` finding rather
+    than aborting the whole scan.
+    """
+    reports: List[Report] = []
+    for path in _iter_manifest_files(target):
+        try:
+            reports.append(audit_path(path))
+        except (OSError, ManifestError) as exc:
+            reports.append(Report(
+                source=path,
+                server_name=os.path.basename(path),
+                findings=[Finding(
+                    "manifest.unreadable", "high",
+                    f"Manifest could not be parsed: {exc}",
+                    path,
+                    "Ensure the file is a valid MCP server manifest (JSON object).",
+                )],
+            ))
+    return reports
+
+
+def scan_to_dict(target: str) -> Dict[str, Any]:
+    """Run :func:`scan` and return a single JSON-serializable result object.
+
+    Stable shape for the MCP capability and ``--format json`` over a scan:
+    aggregate counts + per-server reports.
+    """
+    reports = scan(target)
+    agg = {k: 0 for k in SEVERITY_ORDER}
+    for r in reports:
+        for sev, n in r.counts.items():
+            agg[sev] += n
+    return {
+        "tool": TOOL_NAME,
+        "version": TOOL_VERSION,
+        "target": target,
+        "servers_scanned": len(reports),
+        "servers_failed": sum(1 for r in reports if r.failed),
+        "total_findings": sum(len(r.findings) for r in reports),
+        "counts": agg,
+        "failed": any(r.failed for r in reports),
+        "reports": [r.to_dict() for r in reports],
+    }
+
+
+# --------------------------------------------------------------------------
+# Serializers
+# --------------------------------------------------------------------------
+
+def _max_severity(reports: List[Report]) -> Optional[str]:
+    best: Optional[str] = None
+    for r in reports:
+        for f in r.findings:
+            if best is None or SEVERITY_ORDER.get(f.severity, 99) < SEVERITY_ORDER.get(best, 99):
+                best = f.severity
+    return best
+
+
+# GitHub code-scanning maps SARIF "level" to four values.
+_SARIF_LEVEL = {
+    "critical": "error", "high": "error",
+    "medium": "warning", "low": "note", "info": "note",
+}
+
+
+def to_sarif(reports: List[Report]) -> Dict[str, Any]:
+    """Render scan reports as a SARIF 2.1.0 log (GitHub code-scanning ready)."""
+    rules: Dict[str, Dict[str, Any]] = {}
+    results: List[Dict[str, Any]] = []
+    for report in reports:
+        for f in report.findings:
+            if f.rule not in rules:
+                rules[f.rule] = {
+                    "id": f.rule,
+                    "name": f.rule,
+                    "shortDescription": {"text": f.rule},
+                    "fullDescription": {"text": f.remediation or f.message},
+                    "defaultConfiguration": {
+                        "level": _SARIF_LEVEL.get(f.severity, "warning")
+                    },
+                    "properties": {"security-severity": _security_severity(f.severity)},
+                }
+            results.append({
+                "ruleId": f.rule,
+                "level": _SARIF_LEVEL.get(f.severity, "warning"),
+                "message": {"text": f.message
+                            + (f"\nRemediation: {f.remediation}" if f.remediation else "")},
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": _uri(report.source)},
+                        "region": {"startLine": 1},
+                    },
+                    "logicalLocations": [{"fullyQualifiedName": f.location or report.server_name}],
+                }],
+                "properties": {"severity": f.severity, "server": report.server_name},
+            })
+    return {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {"driver": {
+                "name": TOOL_NAME,
+                "version": TOOL_VERSION,
+                "informationUri": "https://github.com/cognis-digital/mcpharden",
+                "rules": list(rules.values()),
+            }},
+            "results": results,
+        }],
+    }
+
+
+def _security_severity(sev: str) -> str:
+    return {"critical": "9.5", "high": "8.0", "medium": "5.0",
+            "low": "3.0", "info": "0.0"}.get(sev, "5.0")
+
+
+def _uri(path: str) -> str:
+    return path.replace(os.sep, "/")
+
+
+def _html_escape(s: str) -> str:
+    return (s.replace("&", "&amp;").replace("<", "&lt;")
+             .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+_SEV_COLOR = {"critical": "#c0392b", "high": "#e67e22", "medium": "#f1c40f",
+              "low": "#3498db", "info": "#95a5a6"}
+
+
+def to_html(reports: List[Report]) -> str:
+    """Render scan reports as a self-contained, shareable HTML page."""
+    agg = {k: 0 for k in SEVERITY_ORDER}
+    for r in reports:
+        for sev, n in r.counts.items():
+            agg[sev] += n
+    failed = any(r.failed for r in reports)
+
+    rows: List[str] = []
+    for report in reports:
+        status = "FAIL" if report.failed else "PASS"
+        scolor = "#c0392b" if report.failed else "#27ae60"
+        rows.append(
+            f'<h2>{_html_escape(report.server_name)} '
+            f'<small style="color:{scolor}">[{status}] score {report.score}/100</small></h2>'
+            f'<p class="src">{_html_escape(report.source)}</p>'
+        )
+        if not report.findings:
+            rows.append('<p class="clean">No findings — passes hardening checks.</p>')
+            continue
+        rows.append('<table><thead><tr><th>Severity</th><th>Rule</th>'
+                    '<th>Message</th><th>Location</th><th>Remediation</th></tr></thead><tbody>')
+        for f in report.findings:
+            color = _SEV_COLOR.get(f.severity, "#777")
+            rows.append(
+                f'<tr><td><span class="sev" style="background:{color}">'
+                f'{f.severity.upper()}</span></td>'
+                f'<td><code>{_html_escape(f.rule)}</code></td>'
+                f'<td>{_html_escape(f.message)}</td>'
+                f'<td><code>{_html_escape(f.location)}</code></td>'
+                f'<td>{_html_escape(f.remediation)}</td></tr>'
+            )
+        rows.append('</tbody></table>')
+
+    summary = " ".join(
+        f'<span class="sev" style="background:{_SEV_COLOR[s]}">{s}:{agg[s]}</span>'
+        for s in SEVERITY_ORDER
+    )
+    overall = "FAIL" if failed else "PASS"
+    ocolor = "#c0392b" if failed else "#27ae60"
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{TOOL_NAME} report</title>
+<style>
+ body{{font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;margin:2rem;color:#222;background:#fafafa}}
+ h1{{margin-bottom:.2rem}} h2{{margin-top:2rem}}
+ .src{{color:#888;font-size:12px;margin-top:-.4rem}}
+ .clean{{color:#27ae60}}
+ table{{border-collapse:collapse;width:100%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1)}}
+ th,td{{border:1px solid #e1e1e1;padding:.5rem .6rem;text-align:left;vertical-align:top}}
+ th{{background:#f3f4f6}}
+ code{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}}
+ .sev{{color:#fff;padding:.1rem .4rem;border-radius:.25rem;font-size:11px;font-weight:600}}
+ .overall{{font-size:18px;font-weight:700;color:{ocolor}}}
+</style></head><body>
+<h1>{TOOL_NAME} — MCP hardening report</h1>
+<p class="overall">RESULT: {overall}</p>
+<p>{summary} &nbsp;|&nbsp; {len(reports)} server(s) scanned, {sum(1 for r in reports if r.failed)} failing.</p>
+{''.join(rows)}
+<hr><p style="color:#999;font-size:12px">Generated by {TOOL_NAME} {TOOL_VERSION} — Cognis Neural Suite.</p>
+</body></html>
+"""
