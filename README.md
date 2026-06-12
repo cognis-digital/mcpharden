@@ -19,7 +19,7 @@ Security and intelligence teams need MCP server hardening linter — capability 
 ## Install
 
 ```bash
-pip install cognis-mcpharden
+pip install "git+https://github.com/cognis-digital/mcpharden.git"
 # or, from this repo:
 pip install -e ".[dev]"
 ```
