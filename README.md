@@ -12,6 +12,36 @@
 
 *AI Security & Governance — securing LLMs, agents, and the MCP supply chain.*
 
+## Usage — step by step
+
+1. **Install** the linter:
+   ```bash
+   pip install cognis-mcpharden
+   ```
+2. **Audit a single MCP server manifest** — `audit` takes a manifest path and prints a findings table:
+   ```bash
+   mcpharden audit path/to/mcp-server.json
+   ```
+3. **Scan a directory** of manifests and gate on severity. `scan` walks a file or directory; `--min-severity` filters the report and `--fail-on` controls the exit code:
+   ```bash
+   mcpharden scan demos/ --min-severity low --fail-on high
+   ```
+4. **Read the output** in a machine format. `--format` accepts `table` (default), `json`, `sarif`, or `html`; `--out` writes to a file instead of stdout:
+   ```bash
+   mcpharden scan demos/ --format sarif --out mcpharden.sarif
+   # exit code is non-zero when a finding >= --fail-on is present
+   echo $?
+   ```
+   List the detection rules behind those findings with `mcpharden rules`.
+5. **Automate in CI** — fail the build on high-severity findings and upload SARIF to code scanning:
+   ```yaml
+   - run: pip install cognis-mcpharden
+   - run: mcpharden scan . --format sarif --out mcpharden.sarif --fail-on high
+   - uses: github/codeql-action/upload-sarif@v3
+     with: { sarif_file: mcpharden.sarif }
+   ```
+   To expose it to agents instead, run `mcpharden mcp` (stdio JSON-RPC MCP server).
+
 ## Why
 
 Security and intelligence teams need MCP server hardening linter — capability declarations, transport, tool descriptions without standing up heavyweight infrastructure. `mcpharden` is single-purpose, scriptable, CI-friendly, and self-hostable: point it at a target, get prioritized findings in the format your workflow already speaks (table, JSON, SARIF, HTML), and wire it into agents over MCP when you want it autonomous.
