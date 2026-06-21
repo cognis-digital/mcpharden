@@ -15,6 +15,8 @@ from mcpharden.core import (
     to_sarif,
     to_html,
 )
+from mcpharden import vulndb
+from mcpharden.vulndb import VulnClass, CATALOG, BY_ID, BY_RULE, by_cve, all_cves
 
 __version__ = TOOL_VERSION
 
@@ -33,4 +35,11 @@ __all__ = [
     "scan_to_dict",
     "to_sarif",
     "to_html",
+    "vulndb",
+    "VulnClass",
+    "CATALOG",
+    "BY_ID",
+    "BY_RULE",
+    "by_cve",
+    "all_cves",
 ]

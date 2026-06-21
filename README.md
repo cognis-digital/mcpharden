@@ -46,6 +46,37 @@
 
 Security and intelligence teams need MCP server hardening linter — capability declarations, transport, tool descriptions without standing up heavyweight infrastructure. `mcpharden` is single-purpose, scriptable, CI-friendly, and self-hostable: point it at a target, get prioritized findings in the format your workflow already speaks (table, JSON, SARIF, HTML), and wire it into agents over MCP when you want it autonomous.
 
+## MCP vulnerability coverage
+
+`mcpharden` maps the documented **2025–2026 MCP attack surface** — every class
+below ships as a static detection rule plus a catalog entry (`mcpharden vulndb`)
+tied to the real CVEs / advisories:
+
+| Class | What it catches | CVE / source |
+|-------|-----------------|--------------|
+| **Tool poisoning** | hidden instructions in tool metadata | CVE-2025-54136 (MCPoison), CVE-2025-54135 |
+| **Command injection** | tool args → shell/exec (RCE) | CVE-2025-53967, -54073, -53818, -69256, -59834, -53107 |
+| **Line jumping** | ANSI/control chars hiding text from review | MCP-38 taxonomy |
+| **Tool shadowing** | one server's metadata hijacking another's tools | Invariant Labs |
+| **Rug pull** | mutable/dynamic tool re-registration | CVE-2025-54136 |
+| **Token passthrough** | upstream token forwarded to tools (confused deputy) | MCP auth spec |
+| **OAuth/session binding** | session-id-in-URL, OAuth without PKCE/state | OWASP MCP Cheat Sheet |
+| **SSE DNS rebinding** | wildcard CORS on network transport | MCP Toolbox advisory (2026) |
+| **Auto-approval** | tool calls run with no human review | Invariant Labs |
+| **Supply chain** | unpinned `npx`/`uvx` launch | ox.security advisory |
+| **Sampling abuse** | sampling exposed with no rate limit (DoS/credit drain) | Kluster Verify advisory |
+
+```bash
+mcpharden vulndb                        # the full catalog (classes + CVEs + detect rules)
+mcpharden vulndb --cve CVE-2025-54136   # which classes a CVE maps to
+mcpharden vulndb --id MCP-CI-01 --format json
+mcpharden rules                         # every detection rule
+```
+
+New classes are tracked against the public MCP threat literature (Invariant Labs,
+OWASP MCP Tool Poisoning + MCP Security Cheat Sheet, the MCP-38 taxonomy, and the
+Vulnerable MCP Project) and the GitHub Advisory Database.
+
 ## Install
 
 ```bash

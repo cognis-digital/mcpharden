@@ -133,6 +133,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # rules: list the detection catalogue.
     sub.add_parser("rules", help="List the built-in detection rules.")
+
+    # vulndb: the MCP vulnerability taxonomy (classes + CVEs).
+    vdb = sub.add_parser("vulndb",
+                         help="Show the MCP vulnerability catalog (classes, CVEs, refs).")
+    vdb.add_argument("--cve", help="Show entries citing this CVE (e.g. CVE-2025-54136).")
+    vdb.add_argument("--id", help="Show one class by id (e.g. MCP-CI-01).")
+    vdb.add_argument("--format", choices=("table", "json"), default="table")
     return p
 
 
@@ -219,11 +226,50 @@ def _run_rules() -> int:
         ("tool.malformed", "high", "Tool entry is malformed."),
         ("manifest.embedded_secret", "critical", "Embedded credential / token in manifest."),
         ("manifest.unreadable", "high", "Manifest could not be parsed during a scan."),
+        # 2025-2026 MCP attack classes (see `mcpharden vulndb`):
+        ("tool.control_chars", "high", "ANSI/control chars in tool metadata (line jumping)."),
+        ("tool.shadowing", "high", "Description references other tools (tool shadowing)."),
+        ("tool.shell_exec", "critical", "Tool passes args to a shell (command injection/RCE)."),
+        ("tool.mutable_registration", "high", "Dynamic tool registration (rug-pull channel)."),
+        ("tool.auto_approve", "high", "Tool/server auto-approves calls (no human review)."),
+        ("auth.token_passthrough", "high", "Upstream token forwarded to tools (confused deputy)."),
+        ("auth.session_in_url", "high", "Session id carried in a URL (session hijack)."),
+        ("auth.oauth_unbound", "high", "OAuth without PKCE/state (CSRF takeover)."),
+        ("transport.cors_wildcard", "critical", "Wildcard CORS on network transport (DNS rebinding)."),
+        ("transport.unpinned_command", "high", "Unpinned npx/uvx launch (supply-chain RCE)."),
+        ("capabilities.sampling_unbounded", "medium", "Sampling exposed without rate limit (DoS/credit drain)."),
     ]
     print(f"{TOOL_NAME} {TOOL_VERSION} — {len(catalogue)} detection rules")
     print("=" * 68)
     for rule, sev, desc in catalogue:
         print(f"[{_SEV_LABEL.get(sev, sev.upper())}] {rule:<34} {desc}")
+    return 0
+
+
+def _run_vulndb(args: argparse.Namespace) -> int:
+    from . import vulndb
+    if args.cve:
+        entries = vulndb.by_cve(args.cve)
+    elif args.id:
+        one = vulndb.BY_ID.get(args.id.upper())
+        entries = [one] if one else []
+    else:
+        entries = list(vulndb.CATALOG)
+    if not entries:
+        print("no matching vulnerability classes", file=sys.stderr)
+        return 1
+    if args.format == "json":
+        print(json.dumps([e.to_dict() for e in entries], indent=2))
+        return 0
+    print(f"{TOOL_NAME} {TOOL_VERSION} — MCP vulnerability catalog "
+          f"({len(entries)} classes, {len(vulndb.all_cves())} CVEs)")
+    print("=" * 72)
+    for e in entries:
+        cves = (" [" + ", ".join(e.cves) + "]") if e.cves else ""
+        rule = f"  detect: {e.detect_rule}" if e.detect_rule else "  (runtime/operational)"
+        print(f"[{_SEV_LABEL.get(e.severity, e.severity.upper())}] {e.id:<12} {e.name}{cves}")
+        print(f"      {e.summary}")
+        print(f"     {rule}")
     return 0
 
 
@@ -242,6 +288,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _run_scan(args)
     if args.command == "rules":
         return _run_rules()
+    if args.command == "vulndb":
+        return _run_vulndb(args)
     if args.command == "mcp":
         return _run_mcp()
     parser.print_help(sys.stderr)

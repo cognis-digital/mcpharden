@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 # Tool identity (re-exported from the package __init__).
 TOOL_NAME = "mcpharden"
-TOOL_VERSION = "0.1.3"
+TOOL_VERSION = "0.2.0"
 
 # Severity ordering, highest first. Used for sorting + exit-code policy.
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -394,6 +394,174 @@ def _check_secrets(m: Dict[str, Any], out: List[Finding]) -> None:
         ))
 
 
+# Control / ANSI escape characters (excluding tab/newline/CR) — line-jumping.
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+# Shell/exec indicators for command-injection-prone tools.
+_SHELL_RE = re.compile(
+    r"\b(?:os\.system|subprocess|shell\s*=\s*true|/bin/sh|/bin/bash|\bsh\s+-c\b|"
+    r"\bexec\b|\beval\b|\bspawn\b|child_process|popen)\b", re.IGNORECASE)
+_SHELL_NAME_RE = re.compile(r"(?:^|[_\-])(?:exec|shell|run|cmd|command|terminal|bash)(?:$|[_\-])",
+                            re.IGNORECASE)
+
+
+def _check_mcp_vuln_classes(m: Dict[str, Any], out: List[Finding]) -> None:
+    """Detect the documented MCP attack classes catalogued in :mod:`vulndb`.
+
+    Covers line-jumping, cross-server shadowing, command-injection-prone tools,
+    rug-pull/dynamic registration, token passthrough, OAuth session-in-URL,
+    SSE/HTTP CORS-wildcard (DNS rebinding), auto-approval, unpinned server
+    commands, and unbounded sampling.
+    """
+    transport = m.get("transport") if isinstance(m.get("transport"), dict) else {}
+    ttype = str(transport.get("type", "")).lower()
+    caps = m.get("capabilities") if isinstance(m.get("capabilities"), dict) else {}
+
+    # MCP-SSE-01 — permissive CORS on a network transport (DNS rebinding).
+    if ttype in ("http", "sse", "streamable-http"):
+        cors = transport.get("cors", transport.get("allow_origins"))
+        origins = cors.get("allow_origins") if isinstance(cors, dict) else cors
+        wild = origins == "*" or (isinstance(origins, list) and "*" in origins) or cors == "*"
+        if wild:
+            out.append(Finding(
+                "transport.cors_wildcard", "critical",
+                "Network transport allows any Origin (CORS '*'); vulnerable to "
+                "DNS-rebinding into internal MCP services.",
+                "transport.cors",
+                "Validate the Origin header, drop wildcard CORS, bind to localhost, "
+                "and require auth on every request.",
+            ))
+
+    # MCP-SC-01 — unpinned stdio launch command (supply-chain RCE).
+    cmd = str(transport.get("command", "")).lower()
+    args = transport.get("args") if isinstance(transport.get("args"), list) else []
+    argstr = " ".join(str(a) for a in args)
+    if cmd in ("npx", "uvx", "pipx", "bunx") or cmd.endswith(("npx", "uvx")):
+        pinned = "@" in argstr or "==" in argstr
+        if not pinned:
+            out.append(Finding(
+                "transport.unpinned_command", "high",
+                f"Server launched via '{cmd}' without a pinned version; a poisoned "
+                "release would execute on the host.",
+                "transport.command",
+                "Pin the package to an exact version/hash and lock dependencies.",
+            ))
+
+    # MCP-RP-01 — mutable/dynamic tool registration (rug pull channel).
+    tools_cap = caps.get("tools") if isinstance(caps.get("tools"), dict) else {}
+    if tools_cap.get("listChanged") is True or m.get("dynamicRegistration") is True \
+            or m.get("dynamic_registration") is True:
+        out.append(Finding(
+            "tool.mutable_registration", "high",
+            "Server can change its tool definitions at runtime (listChanged / "
+            "dynamic registration); the rug-pull channel for tool poisoning.",
+            "capabilities.tools.listChanged",
+            "Pin tool definitions with a hash and re-prompt the user on any change.",
+        ))
+
+    # MCP-SAMP-01 — sampling exposed without rate limiting.
+    if "sampling" in caps and not (m.get("rateLimit") or m.get("rate_limit")
+                                   or (isinstance(caps.get("sampling"), dict)
+                                       and caps["sampling"].get("rateLimit"))):
+        out.append(Finding(
+            "capabilities.sampling_unbounded", "medium",
+            "Sampling capability is exposed with no rate limit/quota; enables "
+            "credit-drain and denial-of-service.",
+            "capabilities.sampling",
+            "Rate-limit and quota sampling; require auth; alert on spend anomalies.",
+        ))
+
+    # MCP-TPT-01 — token passthrough / authority forwarding.
+    auth = m.get("auth") if isinstance(m.get("auth"), dict) else {}
+    if auth.get("passthrough") is True or m.get("token_passthrough") is True \
+            or auth.get("forward_token") is True:
+        out.append(Finding(
+            "auth.token_passthrough", "high",
+            "Server forwards the upstream/user token to tools; collapses the auth "
+            "boundary (confused-deputy risk).",
+            "auth.passthrough",
+            "Mint short-lived, audience-scoped tokens per tool; never forward the "
+            "user's bearer token downstream.",
+        ))
+
+    # MCP-OAUTH-01 — session id in URL or OAuth without PKCE/state binding.
+    if auth.get("session_in_url") is True or "session=" in str(auth.get("url", "")).lower():
+        out.append(Finding(
+            "auth.session_in_url", "high",
+            "Session identifier carried in a URL; enables session hijacking/fixation.",
+            "auth.url",
+            "Keep session ids out of URLs; use rotating unguessable tokens.",
+        ))
+    if str(auth.get("type", "")).lower() in ("oauth", "oauth2") and not (
+            auth.get("pkce") or auth.get("state")):
+        out.append(Finding(
+            "auth.oauth_unbound", "high",
+            "OAuth configured without PKCE/state; authorization codes are not bound "
+            "to the session (CSRF-style takeover).",
+            "auth",
+            "Require PKCE and a state parameter bound to the session.",
+        ))
+
+    # MCP-AA-01 — auto-approved tool execution (server-level).
+    if m.get("auto_approve") is True or m.get("autoApprove") is True:
+        out.append(Finding(
+            "tool.auto_approve", "high",
+            "Server auto-approves tool calls; removes the human review that catches "
+            "poisoned descriptions before execution.",
+            "auto_approve",
+            "Require explicit per-tool consent for sensitive/dangerous tools.",
+        ))
+
+    # Per-tool checks: line-jumping, shadowing, shell-exec, per-tool auto-approve.
+    tools = m.get("tools")
+    if isinstance(tools, list):
+        for idx, tool in enumerate(tools):
+            if not isinstance(tool, dict):
+                continue
+            name = str(tool.get("name", "")).strip()
+            loc = f"tools[{idx}]:{name}" if name else f"tools[{idx}]"
+            desc = str(tool.get("description", ""))
+            low = desc.lower()
+
+            if _CTRL_RE.search(desc) or _CTRL_RE.search(name):
+                out.append(Finding(
+                    "tool.control_chars", "high",
+                    "Tool metadata contains control/ANSI escape characters; can hide "
+                    "instructions from human review (line jumping).",
+                    loc,
+                    "Reject control/ANSI sequences in tool descriptions and outputs.",
+                ))
+            if any(p in low for p in (
+                "instead of using", "other tools", "override the", "do not use the",
+                "when calling any", "for all tools", "before using any other tool",
+            )):
+                out.append(Finding(
+                    "tool.shadowing", "high",
+                    "Tool description references the behavior of other tools "
+                    "(cross-server tool shadowing).",
+                    loc,
+                    "Namespace tools per server; reject metadata that references "
+                    "other tools/servers.",
+                ))
+            command_field = str(tool.get("command", "")) + " " + str(tool.get("run", ""))
+            if _SHELL_RE.search(desc) or _SHELL_RE.search(command_field) \
+                    or (name and _SHELL_NAME_RE.search(name) and ("{" in command_field or "$" in command_field)):
+                out.append(Finding(
+                    "tool.shell_exec", "critical",
+                    "Tool appears to pass arguments to a shell/exec; command-injection "
+                    "(RCE) risk on the server host.",
+                    loc,
+                    "Never pass tool input to a shell; use argv arrays / parameterized "
+                    "APIs and allow-list inputs.",
+                ))
+            if tool.get("auto_approve") is True or tool.get("autoApprove") is True:
+                out.append(Finding(
+                    "tool.auto_approve", "high",
+                    f"Tool '{name or idx}' is auto-approved; no human review before it runs.",
+                    loc,
+                    "Require explicit consent for this tool.",
+                ))
+
+
 def audit_manifest(manifest: Dict[str, Any], source: str = "<manifest>") -> Report:
     """Run every rule against a parsed manifest and return a Report."""
     name = str(manifest.get("name") or manifest.get("server_name") or "unknown")
@@ -402,6 +570,7 @@ def audit_manifest(manifest: Dict[str, Any], source: str = "<manifest>") -> Repo
     _check_capabilities(manifest, findings)
     _check_tools(manifest, findings)
     _check_secrets(manifest, findings)
+    _check_mcp_vuln_classes(manifest, findings)
     findings.sort(key=lambda f: (SEVERITY_ORDER.get(f.severity, 99), f.rule))
     return Report(source=source, server_name=name, findings=findings)
 
