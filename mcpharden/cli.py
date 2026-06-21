@@ -127,6 +127,29 @@ def _build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None,
                     help="Exit non-zero if a finding at/above this severity exists.")
 
+    # configscan: audit a real MCP *client* config (Claude Desktop / Cursor / …).
+    cfg = sub.add_parser(
+        "configscan",
+        help="Audit an MCP client config (Claude Desktop/Cursor/Cline/VSCode) for risky servers.")
+    cfg.add_argument("config", nargs="?",
+                     help="Path to the config JSON (default: auto-detect common locations).")
+    cfg.add_argument("--format", choices=("table", "json", "sarif", "html"), default="table")
+    cfg.add_argument("--min-severity", choices=tuple(SEVERITY_ORDER), default="info")
+    cfg.add_argument("--out", help="Write output to this file instead of stdout.")
+    cfg.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None)
+
+    # baseline: pin trusted tool definitions for rug-pull detection.
+    bl = sub.add_parser("baseline", help="Pin a manifest's tool definitions to a baseline file.")
+    bl.add_argument("manifest", help="Path to the trusted MCP server manifest JSON.")
+    bl.add_argument("-o", "--out", required=True, help="Baseline JSON path to write.")
+
+    # diff: detect drift (rug pull) vs a saved baseline.
+    df = sub.add_parser("diff", help="Diff a manifest against a baseline to detect tool rug-pulls.")
+    df.add_argument("manifest", help="Path to the current MCP server manifest JSON.")
+    df.add_argument("--baseline", required=True, help="Baseline JSON written by 'baseline'.")
+    df.add_argument("--format", choices=("table", "json", "sarif", "html"), default="table")
+    df.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None)
+
     # mcp: expose as an MCP server over stdio.
     mcp = sub.add_parser("mcp", help="Run as an MCP server (stdio JSON-RPC).")
     mcp.add_argument("--host", default=None, help="Reserved; stdio transport only.")
@@ -273,6 +296,69 @@ def _run_vulndb(args: argparse.Namespace) -> int:
     return 0
 
 
+def _emit_report(report: Report, fmt: str, out) -> None:
+    if fmt == "json":
+        _emit(json.dumps(report.to_dict(), indent=2), out)
+    elif fmt == "sarif":
+        _emit(json.dumps(to_sarif([report]), indent=2), out)
+    elif fmt == "html":
+        _emit(to_html([report]), out)
+    else:
+        _emit(_render_table(report), out)
+
+
+def _run_configscan(args: argparse.Namespace) -> int:
+    from .configaudit import audit_config_path, default_config_paths
+    paths = [args.config] if args.config else [p for p in default_config_paths() if __import__("os").path.exists(p)]
+    if not paths:
+        print("error: no config given and no known MCP client config found; pass a path.",
+              file=sys.stderr)
+        return 2
+    reports = []
+    for p in paths:
+        try:
+            reports.append(audit_config_path(p))
+        except (OSError, ValueError) as exc:
+            print(f"error: {p}: {exc}", file=sys.stderr)
+            return 2
+    # merge into one report for output simplicity
+    merged = Report(source=", ".join(paths),
+                    server_name="; ".join(r.server_name for r in reports),
+                    findings=[f for r in reports for f in r.findings])
+    _apply_min_severity(merged, args.min_severity)
+    _emit_report(merged, args.format, args.out)
+    return 1 if _fails_gate([merged], args.fail_on) else 0
+
+
+def _run_baseline(args: argparse.Namespace) -> int:
+    from .baseline import build_baseline
+    try:
+        manifest = load_manifest(args.manifest)
+    except (OSError, ManifestError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    bl = build_baseline(manifest)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(bl, fh, indent=2, sort_keys=True)
+    print(f"baselined {len(bl['tools'])} tool(s) from '{bl['server']}' -> {args.out}",
+          file=sys.stderr)
+    return 0
+
+
+def _run_diff(args: argparse.Namespace) -> int:
+    from .baseline import diff_baseline
+    try:
+        manifest = load_manifest(args.manifest)
+        with open(args.baseline, "r", encoding="utf-8") as fh:
+            baseline = json.load(fh)
+    except (OSError, ManifestError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    report = diff_baseline(baseline, manifest, source=args.manifest)
+    _emit_report(report, args.format, None)
+    return 1 if _fails_gate([report], args.fail_on) else 0
+
+
 def _run_mcp() -> int:
     from .mcp_server import run_mcp_server
     run_mcp_server()
@@ -290,6 +376,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _run_rules()
     if args.command == "vulndb":
         return _run_vulndb(args)
+    if args.command == "configscan":
+        return _run_configscan(args)
+    if args.command == "baseline":
+        return _run_baseline(args)
+    if args.command == "diff":
+        return _run_diff(args)
     if args.command == "mcp":
         return _run_mcp()
     parser.print_help(sys.stderr)

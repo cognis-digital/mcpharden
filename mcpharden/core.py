@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 # Tool identity (re-exported from the package __init__).
 TOOL_NAME = "mcpharden"
-TOOL_VERSION = "0.2.0"
+TOOL_VERSION = "0.3.0"
 
 # Severity ordering, highest first. Used for sorting + exit-code policy.
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}

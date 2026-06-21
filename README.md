@@ -89,11 +89,37 @@ pip install -e ".[dev]"
 
 ```bash
 mcpharden --version
-mcpharden scan demos/                      # run against the bundled demo
+mcpharden scan demos/                      # audit server manifests (file or directory)
 mcpharden scan demos/ --format sarif --out r.sarif --fail-on high
 mcpharden scan demos/ --format html --out report.html
 mcpharden mcp                              # expose as an MCP server (Cognis.Studio / Claude Desktop / Cursor)
 ```
+
+### Audit your real MCP client config
+
+The riskiest surface is the `mcpServers` block in your **client** config. Point
+`configscan` at it (or let it auto-detect Claude Desktop / Cursor / Cline / VS Code):
+
+```bash
+mcpharden configscan                       # auto-detect common client configs
+mcpharden configscan ~/.cursor/mcp.json    # or a specific file
+mcpharden configscan path/to/config.json --format sarif --out mcp.sarif
+```
+
+It flags **unpinned `npx`/`uvx` launchers** (supply-chain), **secrets hard-coded
+in `env`**, **`sh -c` command lines** (RCE), **cleartext / no-auth remote
+servers**, and **blanket auto-approve** lists.
+
+### Catch rug-pulls (tool drift after you trusted a server)
+
+```bash
+mcpharden baseline server.json -o server.baseline.json   # pin once, when trusted
+mcpharden diff server.json --baseline server.baseline.json --fail-on high
+```
+
+`diff` flags any tool whose name/description/`inputSchema` was **added, removed,
+or mutated** since the baseline — the tool-poisoning / rug-pull signature
+(MCP-RP-01, CVE-2025-54136).
 
 ## Built-in demo scenarios
 

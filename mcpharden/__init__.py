@@ -17,6 +17,9 @@ from mcpharden.core import (
 )
 from mcpharden import vulndb
 from mcpharden.vulndb import VulnClass, CATALOG, BY_ID, BY_RULE, by_cve, all_cves
+from mcpharden import configaudit, baseline
+from mcpharden.configaudit import audit_config, audit_config_path, default_config_paths
+from mcpharden.baseline import build_baseline, diff_baseline
 
 __version__ = TOOL_VERSION
 
@@ -42,4 +45,11 @@ __all__ = [
     "BY_RULE",
     "by_cve",
     "all_cves",
+    "configaudit",
+    "baseline",
+    "audit_config",
+    "audit_config_path",
+    "default_config_paths",
+    "build_baseline",
+    "diff_baseline",
 ]
