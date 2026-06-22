@@ -197,7 +197,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertEqual(len(out), 2)
         self.assertEqual(out[0]["result"]["serverInfo"]["name"], "mcpharden")
         names = {t["name"] for t in out[1]["result"]["tools"]}
-        self.assertEqual(names, {"scan", "audit_manifest"})
+        self.assertEqual(names, {"scan", "audit_manifest", "posture"})
 
     def test_tools_call_scan(self):
         target = os.path.join(DEMOS, "01-basic", "weather-server.json")

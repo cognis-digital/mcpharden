@@ -92,6 +92,7 @@ mcpharden --version
 mcpharden scan demos/                      # audit server manifests (file or directory)
 mcpharden scan demos/ --format sarif --out r.sarif --fail-on high
 mcpharden scan demos/ --format html --out report.html
+mcpharden posture demos/                   # cross-server fleet correlation + grade
 mcpharden mcp                              # expose as an MCP server (Cognis.Studio / Claude Desktop / Cursor)
 ```
 
@@ -120,6 +121,28 @@ mcpharden diff server.json --baseline server.baseline.json --fail-on high
 `diff` flags any tool whose name/description/`inputSchema` was **added, removed,
 or mutated** since the baseline — the tool-poisoning / rug-pull signature
 (MCP-RP-01, CVE-2025-54136).
+
+### Fleet posture — cross-server risks a per-server audit can't see
+
+Nobody runs one MCP server. An agent host connects to a *fleet* that shares one
+model context and one trust boundary, which creates risks whose evidence is
+**split across manifests** and is therefore invisible to a per-server scan.
+`posture` correlates the whole directory:
+
+```bash
+mcpharden posture ./mcp-servers                 # fleet grade + cross-server findings
+mcpharden posture ./mcp-servers --format html --out posture.html
+mcpharden posture ./mcp-servers --fail-on high  # CI gate on cross-server risk
+mcpharden posture ./mcp-servers --min-grade B   # or gate on the fleet's letter grade
+```
+
+It detects **reused credentials across servers** (`fleet.shared_secret`, blast
+radius = the whole fleet), **tool-name collisions** (`fleet.tool_collision`, the
+precondition for cross-server tool shadowing), an **RCE-server-next-to-exposed-peer
+lateral-movement surface** (`fleet.lateral_movement`), **trust-tier / TLS
+inconsistency** between network peers, and **failure concentration** — then rolls
+the fleet up to a single hardening grade and the one highest-leverage fix. Full
+walkthrough, threat model, and diagram: **[docs/POSTURE.md](docs/POSTURE.md)**.
 
 ## Built-in demo scenarios
 

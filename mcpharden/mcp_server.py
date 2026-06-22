@@ -28,6 +28,7 @@ from .core import (
     audit_manifest,
     scan_to_dict,
 )
+from . import posture as _posture
 
 PROTOCOL_VERSION = "2024-11-05"
 
@@ -65,6 +66,25 @@ _TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "posture",
+        "description": "Correlate a fleet of MCP servers (a directory of "
+                       "manifests) and return cross-server risks a per-server "
+                       "audit cannot see: tool-name collisions, shared/reused "
+                       "credentials, lateral-movement surface, trust-tier "
+                       "inconsistency, and a fleet hardening grade.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Directory (or file) of MCP server manifests.",
+                }
+            },
+            "required": ["target"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -87,6 +107,11 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(manifest, dict):
             raise ValueError("`manifest` (object) is required")
         payload = audit_manifest(manifest, source="<mcp:inline>").to_dict()
+    elif name == "posture":
+        target = arguments.get("target")
+        if not isinstance(target, str) or not target:
+            raise ValueError("`target` (string path) is required")
+        payload = _posture.assess(target).to_dict()
     else:
         raise ValueError(f"unknown tool: {name}")
 

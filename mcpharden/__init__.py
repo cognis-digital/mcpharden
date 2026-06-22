@@ -20,6 +20,14 @@ from mcpharden.vulndb import VulnClass, CATALOG, BY_ID, BY_RULE, by_cve, all_cve
 from mcpharden import configaudit, baseline
 from mcpharden.configaudit import audit_config, audit_config_path, default_config_paths
 from mcpharden.baseline import build_baseline, diff_baseline
+from mcpharden import posture
+from mcpharden.posture import (
+    PostureReport,
+    ServerSummary,
+    assess,
+    analyze,
+    summarize,
+)
 
 __version__ = TOOL_VERSION
 
@@ -52,4 +60,10 @@ __all__ = [
     "default_config_paths",
     "build_baseline",
     "diff_baseline",
+    "posture",
+    "PostureReport",
+    "ServerSummary",
+    "assess",
+    "analyze",
+    "summarize",
 ]

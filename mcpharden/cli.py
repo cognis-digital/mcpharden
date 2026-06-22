@@ -150,6 +150,20 @@ def _build_parser() -> argparse.ArgumentParser:
     df.add_argument("--format", choices=("table", "json", "sarif", "html"), default="table")
     df.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None)
 
+    # posture: fleet-wide cross-server correlation (collisions, shared secrets,
+    # lateral-movement surface, trust-tier inconsistency, fleet grade).
+    pos = sub.add_parser(
+        "posture",
+        help="Correlate a fleet of MCP servers: cross-server risks a per-server audit can't see.")
+    pos.add_argument("target", help="Directory (or file) of MCP server manifests.")
+    pos.add_argument("--format", choices=("table", "json", "html"), default="table",
+                     help="Output format (default: table).")
+    pos.add_argument("--out", help="Write output to this file instead of stdout.")
+    pos.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None,
+                     help="Exit non-zero if a correlation finding at/above this severity exists.")
+    pos.add_argument("--min-grade", choices=("A", "B", "C", "D", "F"), default=None,
+                     help="Exit non-zero if the fleet grade is below this letter.")
+
     # mcp: expose as an MCP server over stdio.
     mcp = sub.add_parser("mcp", help="Run as an MCP server (stdio JSON-RPC).")
     mcp.add_argument("--host", default=None, help="Reserved; stdio transport only.")
@@ -261,6 +275,13 @@ def _run_rules() -> int:
         ("transport.cors_wildcard", "critical", "Wildcard CORS on network transport (DNS rebinding)."),
         ("transport.unpinned_command", "high", "Unpinned npx/uvx launch (supply-chain RCE)."),
         ("capabilities.sampling_unbounded", "medium", "Sampling exposed without rate limit (DoS/credit drain)."),
+        # Cross-server fleet correlations (see `mcpharden posture`):
+        ("fleet.shared_secret", "critical", "Same credential reused across servers (blast radius)."),
+        ("fleet.tool_collision", "high", "One tool name registered by multiple servers (shadowing precondition)."),
+        ("fleet.lateral_movement", "high", "RCE-prone server next to an exposed network peer (pivot surface)."),
+        ("fleet.trust_tier_inconsistency", "high", "Some network peers require auth, others don't."),
+        ("fleet.tls_inconsistency", "medium", "Cleartext network peer among TLS peers."),
+        ("fleet.failure_concentration", "medium", "Majority of the fleet fails its per-server audit."),
     ]
     print(f"{TOOL_NAME} {TOOL_VERSION} — {len(catalogue)} detection rules")
     print("=" * 68)
@@ -359,6 +380,35 @@ def _run_diff(args: argparse.Namespace) -> int:
     return 1 if _fails_gate([report], args.fail_on) else 0
 
 
+_GRADE_ORDER = {"A": 0, "B": 1, "C": 2, "D": 3, "F": 4}
+
+
+def _run_posture(args: argparse.Namespace) -> int:
+    from . import posture
+    try:
+        pr = posture.assess(args.target)
+    except (OSError, ManifestError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    fmt = args.format
+    if fmt == "json":
+        _emit(json.dumps(pr.to_dict(), indent=2), args.out)
+    elif fmt == "html":
+        _emit(posture.render_html(pr), args.out)
+    else:
+        _emit(posture.render_table(pr), args.out)
+
+    rc = 0
+    if args.fail_on:
+        threshold = SEVERITY_ORDER[args.fail_on]
+        if any(SEVERITY_ORDER.get(f.severity, 99) <= threshold for f in pr.findings):
+            rc = 1
+    if args.min_grade and _GRADE_ORDER[pr.grade] > _GRADE_ORDER[args.min_grade]:
+        rc = 1
+    return rc
+
+
 def _run_mcp() -> int:
     from .mcp_server import run_mcp_server
     run_mcp_server()
@@ -382,6 +432,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _run_baseline(args)
     if args.command == "diff":
         return _run_diff(args)
+    if args.command == "posture":
+        return _run_posture(args)
     if args.command == "mcp":
         return _run_mcp()
     parser.print_help(sys.stderr)
