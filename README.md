@@ -12,6 +12,86 @@
 
 *AI Security & Governance — securing LLMs, agents, and the MCP supply chain.*
 
+
+<!-- cognis:example:start -->
+## 🔎 Example output
+
+Real, reproducible output from the tool — runs offline:
+
+```console
+$ mcpharden-emit --version
+mcpharden 0.4.0
+```
+
+```console
+$ mcpharden-emit --help
+usage: mcpharden [-h] [--version]
+                 {audit,scan,configscan,baseline,diff,posture,mcp,rules,vulndb} ...
+
+MCP server hardening linter — audits capability declarations, transport, and
+tool descriptions.
+
+positional arguments:
+  {audit,scan,configscan,baseline,diff,posture,mcp,rules,vulndb}
+    audit               Audit a single MCP server manifest (JSON) for
+                        weaknesses.
+    scan                Scan a manifest file or a directory of manifests.
+    configscan          Audit an MCP client config (Claude
+                        Desktop/Cursor/Cline/VSCode) for risky servers.
+    baseline            Pin a manifest's tool definitions to a baseline file.
+    diff                Diff a manifest against a baseline to detect tool rug-
+                        pulls.
+    posture             Correlate a fleet of MCP servers: cross-server risks a
+                        per-server audit can't see.
+    mcp                 Run as an MCP server (stdio JSON-RPC).
+    rules               List the built-in detection rules.
+    vulndb              Show the MCP vulnerability catalog (classes, CVEs,
+                        refs).
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+```
+
+```console
+$ mcpharden-emit rules
+mcpharden 0.4.0 — 40 detection rules
+====================================================================
+[CRIT] transport.bind_all                 HTTP transport bound to all interfaces.
+[HIGH] transport.no_tls                   Network transport without TLS.
+[HIGH] transport.no_auth                  Network transport without an auth declaration.
+[MED ] transport.undeclared               No transport type declared.
+[LOW ] transport.unknown_type             Unrecognized transport type.
+[MED ] transport.wildcard_origin          Wildcard allowed_origins (DNS-rebind).
+[HIGH] transport.malformed                transport is not an object or known string.
+[HIGH] capability.tools_mismatch          Tools exposed but capability not advertised.
+[MED ] capability.undeclared              No capabilities block.
+[HIGH] capability.malformed               capabilities is not an object.
+[LOW ] capability.tools_empty             Advertises tools capability but exposes none.
+[LOW ] capability.experimental            Experimental capabilities enabled.
+[HIGH] tool.no_name                       Tool has no name.
+[HIGH] tool.duplicate_name                Duplicate tool name.
+[MED ] tool.no_description                Tool has no description.
+[LOW ] tool.thin_description              Tool description is too short.
+[CRIT] tool.injection_in_description      Instruction-smuggling in description.
+[HIGH] tool.danger_no_schema              Side-effecting tool with no inputSchema.
+[MED ] tool.danger_no_confirm             Side-effecting tool without confirmation.
+[MED ] tool.schema_open                   inputSchema additionalProperties=true.
+[HIGH] tool.malformed                     Tool entry is malformed.
+[CRIT] manifest.embedded_secret           Embedded credential / token in manifest.
+[HIGH] manifest.unreadable                Manifest could not be parsed during a scan.
+[HIGH] tool.control_chars                 ANSI/control chars in tool metadata (line jumping).
+[HIGH] tool.shadowing                     Description references other tools (tool shadowing).
+[CRIT] tool.shell_exec                    Tool passes args to a shell (command injection/RCE).
+[HIGH] tool.mutable_registration          Dynamic tool registration (rug-pull channel).
+[HIGH] tool.auto_approve                  Tool/server auto-approves calls (no human review).
+[HIGH] auth.token_passthrough             Upstream token for
+```
+
+> Blocks above are real `mcpharden` output — reproduce them from a clone.
+
+<!-- cognis:example:end -->
+
 ## Usage — step by step
 
 1. **Install** the linter:

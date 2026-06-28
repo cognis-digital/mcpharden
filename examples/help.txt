@@ -1,0 +1,28 @@
+$ mcpharden-emit --help
+
+usage: mcpharden [-h] [--version]
+                 {audit,scan,configscan,baseline,diff,posture,mcp,rules,vulndb} ...
+
+MCP server hardening linter — audits capability declarations, transport, and
+tool descriptions.
+
+positional arguments:
+  {audit,scan,configscan,baseline,diff,posture,mcp,rules,vulndb}
+    audit               Audit a single MCP server manifest (JSON) for
+                        weaknesses.
+    scan                Scan a manifest file or a directory of manifests.
+    configscan          Audit an MCP client config (Claude
+                        Desktop/Cursor/Cline/VSCode) for risky servers.
+    baseline            Pin a manifest's tool definitions to a baseline file.
+    diff                Diff a manifest against a baseline to detect tool rug-
+                        pulls.
+    posture             Correlate a fleet of MCP servers: cross-server risks a
+                        per-server audit can't see.
+    mcp                 Run as an MCP server (stdio JSON-RPC).
+    rules               List the built-in detection rules.
+    vulndb              Show the MCP vulnerability catalog (classes, CVEs,
+                        refs).
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit

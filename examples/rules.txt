@@ -1,0 +1,33 @@
+$ mcpharden-emit rules
+
+mcpharden 0.4.0 — 40 detection rules
+====================================================================
+[CRIT] transport.bind_all                 HTTP transport bound to all interfaces.
+[HIGH] transport.no_tls                   Network transport without TLS.
+[HIGH] transport.no_auth                  Network transport without an auth declaration.
+[MED ] transport.undeclared               No transport type declared.
+[LOW ] transport.unknown_type             Unrecognized transport type.
+[MED ] transport.wildcard_origin          Wildcard allowed_origins (DNS-rebind).
+[HIGH] transport.malformed                transport is not an object or known string.
+[HIGH] capability.tools_mismatch          Tools exposed but capability not advertised.
+[MED ] capability.undeclared              No capabilities block.
+[HIGH] capability.malformed               capabilities is not an object.
+[LOW ] capability.tools_empty             Advertises tools capability but exposes none.
+[LOW ] capability.experimental            Experimental capabilities enabled.
+[HIGH] tool.no_name                       Tool has no name.
+[HIGH] tool.duplicate_name                Duplicate tool name.
+[MED ] tool.no_description                Tool has no description.
+[LOW ] tool.thin_description              Tool description is too short.
+[CRIT] tool.injection_in_description      Instruction-smuggling in description.
+[HIGH] tool.danger_no_schema              Side-effecting tool with no inputSchema.
+[MED ] tool.danger_no_confirm             Side-effecting tool without confirmation.
+[MED ] tool.schema_open                   inputSchema additionalProperties=true.
+[HIGH] tool.malformed                     Tool entry is malformed.
+[CRIT] manifest.embedded_secret           Embedded credential / token in manifest.
+[HIGH] manifest.unreadable                Manifest could not be parsed during a scan.
+[HIGH] tool.control_chars                 ANSI/control chars in tool metadata (line jumping).
+[HIGH] tool.shadowing                     Description references other tools (tool shadowing).
+[CRIT] tool.shell_exec                    Tool passes args to a shell (command injection/RCE).
+[HIGH] tool.mutable_registration          Dynamic tool registration (rug-pull channel).
+[HIGH] tool.auto_approve                  Tool/server auto-approves calls (no human review).
+[HIGH] auth.token_passthrough             Upstream token for
