@@ -7,3 +7,5 @@ build/
 *.html
 !demos/**
 demos/**/__pycache__/
+
+media/walkthrough.mp4
