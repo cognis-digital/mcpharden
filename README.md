@@ -224,14 +224,45 @@ inconsistency** between network peers, and **failure concentration** — then ro
 the fleet up to a single hardening grade and the one highest-leverage fix. Full
 walkthrough, threat model, and diagram: **[docs/POSTURE.md](docs/POSTURE.md)**.
 
-## Built-in demo scenarios
+## Demos
 
-Each scenario folder includes a `SCENARIO.md` describing the situation and the findings to expect.
+Five runnable, **offline** scenarios — one per audience — that drive the real
+`mcpharden` API against the bundled sample manifests in
+[`demos/fixtures/`](demos/fixtures/). Each prints narrated output and exits 0, so
+they double as smoke tests. Full walkthrough: **[docs/DEMOS.md](docs/DEMOS.md)**.
 
-- [`demos/01-basic/`](demos/01-basic/SCENARIO.md)
-- [`demos/01-public-mcp-no-auth/`](demos/01-public-mcp-no-auth/SCENARIO.md)
-- [`demos/02-internal-stdio/`](demos/02-internal-stdio/SCENARIO.md)
-- [`demos/03-shared-multi-server/`](demos/03-shared-multi-server/SCENARIO.md)
+```bash
+PYTHONUTF8=1 python demos/run_all.py                     # all five, end to end
+PYTHONUTF8=1 python demos/05_red_team_fleet_posture.py   # or just one
+```
+
+| # | Scenario | Audience | The point |
+|---|----------|----------|-----------|
+| 1 | [`01_ai_platform_review.py`](demos/01_ai_platform_review.py) | AI platform / security engineers | Gate every server before it joins the agent trust boundary; fail closed on any critical/high. |
+| 2 | [`02_server_author_lint.py`](demos/02_server_author_lint.py) | MCP server authors | Lint your own manifest, follow the remediations, watch the score climb 0 → 100. |
+| 3 | [`03_auditor_cve_mapping.py`](demos/03_auditor_cve_mapping.py) | Security auditors / compliance | Tie every finding to a named MCP attack class + real CVE, and emit SARIF. |
+| 4 | [`04_blue_team_rugpull.py`](demos/04_blue_team_rugpull.py) | Blue team / incident response | Pin what you approved, then catch the silent rug-pull (mutated + added tools). |
+| 5 | [`05_red_team_fleet_posture.py`](demos/05_red_team_fleet_posture.py) | Red team / attack-surface review | Find the cross-server risks (shared secret, tool collision, lateral movement) a per-server audit can't see. |
+
+The pipeline these demos exercise — see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full version:
+
+```mermaid
+flowchart LR
+    man[Server manifest] --> rules{Rule engine<br/>transport · capability · tooling · vuln-class}
+    cfg[Client config] --> rules
+    base[Baseline] --> rules
+    rules --> rep[(Report<br/>findings + 0-100 score)]
+    rep --> fleet[Fleet posture<br/>cross-server correlation]
+    rep --> cat[vulndb<br/>class + CVE mapping]
+    rep --> out[table · JSON · SARIF · HTML]
+    fleet --> out
+    classDef hot stroke:#f4b400,stroke-width:3px;
+    class rules,rep hot;
+```
+
+The older scenario folders (`demos/01-basic/`, `demos/01-public-mcp-no-auth/`,
+`demos/02-internal-stdio/`, `demos/03-shared-multi-server/`) ship raw sample
+manifests plus a `SCENARIO.md` each, for use directly with `mcpharden scan`.
 
 ## Output formats
 
