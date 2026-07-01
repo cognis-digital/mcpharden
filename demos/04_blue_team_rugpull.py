@@ -6,7 +6,7 @@ invisible unless you pinned what you approved. This demo pins a baseline of the
 trusted version, then diffs the updated manifest against it and catches the
 mutated and newly-added tools that an attacker slipped in.
 """
-from _common import fixture, rule, sev
+from _common import fingerprint_of, fixture, rule, sev
 
 from mcpharden import build_baseline, diff_baseline, load_manifest
 
@@ -19,9 +19,10 @@ def main() -> None:
     server_name = str(baseline["server"])
     print(f"\n1) Pinned a baseline of '{server_name}' when it was trusted:")
     # The pinned values are SHA-256 digests of public tool metadata (name +
-    # description + schema) — not credentials. Show a short fingerprint.
-    for name, digest in baseline["tools"].items():
-        fingerprint = "".join(ch for ch in str(digest)[:16])
+    # description + schema) — not credentials. Show a short, re-derived
+    # fingerprint so we never print a pinned digest verbatim.
+    for name in baseline["tools"]:
+        fingerprint = fingerprint_of(baseline["tools"][name])
         print(f"     {name:<16} {fingerprint}…")
 
     print("\n2) A week later the server self-updated. Diff it against the baseline:\n")

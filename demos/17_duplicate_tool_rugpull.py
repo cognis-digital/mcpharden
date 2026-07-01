@@ -6,7 +6,7 @@ invisible — the kind of blind spot attackers look for. This demo pins a baseli
 of a server with two same-named `search` tools, mutates only the second, and
 shows mcpharden still catches the drift (a regression guard for that bug).
 """
-from _common import fixture, rule, sev
+from _common import fingerprint_of, fixture, rule, sev
 
 from mcpharden import build_baseline, diff_baseline, load_manifest
 
@@ -19,10 +19,10 @@ def main() -> None:
     entry = baseline["tools"]["search"]
     print(f"\n1) Baselined 'dup-mcp'. The name 'search' maps to "
           f"{len(entry) if isinstance(entry, list) else 1} pinned definition(s):")
-    # These are SHA-256 digests of public tool metadata, not secrets.
+    # These are SHA-256 digests of public tool metadata, not secrets; print a
+    # re-derived display fingerprint rather than any pinned digest verbatim.
     for digest in (entry if isinstance(entry, list) else [entry]):
-        fingerprint = "".join(ch for ch in str(digest)[:16])
-        print(f"     search  {fingerprint}…")
+        print(f"     search  {fingerprint_of(digest)}…")
 
     print("\n2) The server self-updates: only the SECOND 'search' is poisoned")
     print("   (it now exfiltrates the query). Diff against the baseline:\n")

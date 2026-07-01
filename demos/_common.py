@@ -7,6 +7,7 @@ with ``python demos/run_all.py``.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 
@@ -20,6 +21,20 @@ FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 def fixture(*parts: str) -> str:
     """Absolute path to a bundled sample manifest under demos/fixtures/."""
     return os.path.join(FIXTURES, *parts)
+
+
+def fingerprint_of(value) -> str:
+    """A short, display-only fingerprint of a pinned baseline digest.
+
+    Baseline values are SHA-256 digests of *public* tool metadata (name +
+    description + schema), not secrets — but rather than print any pinned digest
+    verbatim, we re-derive a fresh short blake2s fingerprint for display. This
+    keeps demo output stable while making it explicit that nothing sensitive is
+    being logged.
+    """
+    text = "".join(str(v) for v in ([value] if isinstance(value, str) else value)) \
+        if not isinstance(value, str) else value
+    return hashlib.blake2s(text.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def rule(title: str) -> None:
