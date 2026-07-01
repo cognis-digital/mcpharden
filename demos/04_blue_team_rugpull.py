@@ -16,14 +16,12 @@ def main() -> None:
 
     trusted = load_manifest(fixture("payments-trusted.json"))
     baseline = build_baseline(trusted)
-    server_name = str(baseline["server"])
-    print(f"\n1) Pinned a baseline of '{server_name}' when it was trusted:")
-    # The pinned values are SHA-256 digests of public tool metadata (name +
-    # description + schema) — not credentials. Show a short, re-derived
-    # fingerprint so we never print a pinned digest verbatim.
-    for name in baseline["tools"]:
-        fingerprint = fingerprint_of(baseline["tools"][name])
-        print(f"     {name:<16} {fingerprint}…")
+    print(f"\n1) Pinned a baseline of '{trusted.get('name')}' when it was trusted "
+          f"({len(baseline['tools'])} tool definition(s)):")
+    # Show a display fingerprint derived straight from each public tool object in
+    # the manifest — never a pinned digest — so nothing sensitive is printed.
+    for tool in trusted.get("tools", []):
+        print(f"     {tool.get('name', ''):<16} {fingerprint_of(tool)}…")
 
     print("\n2) A week later the server self-updated. Diff it against the baseline:\n")
     updated = load_manifest(fixture("payments-rugpulled.json"))

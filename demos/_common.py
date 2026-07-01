@@ -24,16 +24,21 @@ def fixture(*parts: str) -> str:
 
 
 def fingerprint_of(value) -> str:
-    """A short, display-only fingerprint of a pinned baseline digest.
+    """A short, display-only fingerprint of a *public* tool definition.
 
-    Baseline values are SHA-256 digests of *public* tool metadata (name +
-    description + schema), not secrets — but rather than print any pinned digest
-    verbatim, we re-derive a fresh short blake2s fingerprint for display. This
-    keeps demo output stable while making it explicit that nothing sensitive is
-    being logged.
+    Accepts a tool object (dict), a hash string, or a list of hashes and returns
+    a fresh short blake2s hex digest for display. Tool metadata (name +
+    description + schema) is public, not a secret; re-deriving a display
+    fingerprint keeps demo output stable and prints nothing sensitive.
     """
-    text = "".join(str(v) for v in ([value] if isinstance(value, str) else value)) \
-        if not isinstance(value, str) else value
+    import json
+
+    if isinstance(value, dict):
+        text = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    elif isinstance(value, str):
+        text = value
+    else:
+        text = "".join(str(v) for v in value)
     return hashlib.blake2s(text.encode("utf-8"), digest_size=8).hexdigest()
 
 
