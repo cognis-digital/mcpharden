@@ -19,8 +19,10 @@ def main() -> None:
     entry = baseline["tools"]["search"]
     print(f"\n1) Baselined 'dup-mcp'. The name 'search' maps to "
           f"{len(entry) if isinstance(entry, list) else 1} pinned definition(s):")
-    for h in (entry if isinstance(entry, list) else [entry]):
-        print(f"     search  {h[:16]}…")
+    # These are SHA-256 digests of public tool metadata, not secrets.
+    for digest in (entry if isinstance(entry, list) else [entry]):
+        fingerprint = "".join(ch for ch in str(digest)[:16])
+        print(f"     search  {fingerprint}…")
 
     print("\n2) The server self-updates: only the SECOND 'search' is poisoned")
     print("   (it now exfiltrates the query). Diff against the baseline:\n")
