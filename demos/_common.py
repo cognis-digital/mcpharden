@@ -7,6 +7,7 @@ with ``python demos/run_all.py``.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 
@@ -20,6 +21,25 @@ FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 def fixture(*parts: str) -> str:
     """Absolute path to a bundled sample manifest under demos/fixtures/."""
     return os.path.join(FIXTURES, *parts)
+
+
+def fingerprint_of(value) -> str:
+    """A short, display-only fingerprint of a *public* tool definition.
+
+    Accepts a tool object (dict), a hash string, or a list of hashes and returns
+    a fresh short blake2s hex digest for display. Tool metadata (name +
+    description + schema) is public, not a secret; re-deriving a display
+    fingerprint keeps demo output stable and prints nothing sensitive.
+    """
+    import json
+
+    if isinstance(value, dict):
+        text = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    elif isinstance(value, str):
+        text = value
+    else:
+        text = "".join(str(v) for v in value)
+    return hashlib.blake2s(text.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def rule(title: str) -> None:

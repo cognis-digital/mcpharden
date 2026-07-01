@@ -1,0 +1,19 @@
+{
+  "name": "dup-mcp",
+  "transport": {
+    "type": "stdio"
+  },
+  "capabilities": {
+    "tools": {}
+  },
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search the primary index for a query string."
+    },
+    {
+      "name": "search",
+      "description": "Search the secondary archive index for a query string."
+    }
+  ]
+}

@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 # Tool identity (re-exported from the package __init__).
 TOOL_NAME = "mcpharden"
-TOOL_VERSION = "0.4.0"
+TOOL_VERSION = "0.5.0"
 
 # Severity ordering, highest first. Used for sorting + exit-code policy.
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -117,14 +117,22 @@ class ManifestError(ValueError):
 
 
 def load_manifest(path: str) -> Dict[str, Any]:
+    if os.path.isdir(path):
+        raise ManifestError(
+            f"{path} is a directory, not a manifest file; pass a single .json "
+            "file or use scan()/posture for directories")
     with open(path, "r", encoding="utf-8") as fh:
         raw = fh.read()
+    if not raw.strip():
+        raise ManifestError(f"manifest {path} is empty")
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ManifestError(f"invalid JSON in {path}: {exc}") from exc
     if not isinstance(data, dict):
-        raise ManifestError("manifest root must be a JSON object")
+        kind = type(data).__name__
+        raise ManifestError(
+            f"manifest root must be a JSON object, got a JSON {kind} in {path}")
     # Stash the raw text so secret-scanning can see formatting/whitespace.
     data.setdefault("_raw_text", raw)
     return data
@@ -217,7 +225,11 @@ def _check_transport(m: Dict[str, Any], out: List[Finding]) -> None:
                 "Require a bearer token / OAuth and declare it in transport.auth.",
             ))
         origins = transport.get("allowed_origins")
-        if origins in ("*", ["*"]):
+        wildcard_origin = (
+            origins == "*"
+            or (isinstance(origins, (list, tuple)) and "*" in origins)
+        )
+        if wildcard_origin:
             out.append(Finding(
                 "transport.wildcard_origin", "medium",
                 "Wildcard allowed_origins enables DNS-rebinding / cross-origin "

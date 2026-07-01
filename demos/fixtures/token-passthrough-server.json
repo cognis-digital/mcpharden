@@ -1,0 +1,39 @@
+{
+  "name": "proxy-mcp",
+  "version": "1.0.0",
+  "transport": {
+    "type": "http",
+    "host": "127.0.0.1",
+    "tls": true,
+    "auth": {
+      "type": "oauth2",
+      "pkce": true,
+      "state": true
+    }
+  },
+  "capabilities": {
+    "tools": {}
+  },
+  "auth": {
+    "type": "oauth2",
+    "pkce": true,
+    "state": true,
+    "passthrough": true,
+    "forward_token": true
+  },
+  "tools": [
+    {
+      "name": "call_upstream",
+      "description": "Forward a request to the upstream SaaS API using the caller's token.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

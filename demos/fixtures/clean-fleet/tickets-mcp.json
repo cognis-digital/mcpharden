@@ -1,0 +1,23 @@
+{
+  "name": "tickets-mcp",
+  "transport": "stdio",
+  "auth": "oauth2",
+  "capabilities": {
+    "tools": {}
+  },
+  "tools": [
+    {
+      "name": "tickets_search",
+      "description": "Search Jira tickets by JQL query in project ENGR.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jql": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

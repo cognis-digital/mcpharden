@@ -16,9 +16,11 @@ def main() -> None:
 
     trusted = load_manifest(fixture("payments-trusted.json"))
     baseline = build_baseline(trusted)
-    print(f"\n1) Pinned a baseline of '{baseline['server']}' when it was trusted:")
-    for name, h in baseline["tools"].items():
-        print(f"     {name:<16} {h[:16]}…")
+    pinned_count = len(baseline["tools"])
+    print(f"\n1) Pinned a SHA-256 baseline of the trusted server: "
+          f"{pinned_count} tool definition(s).")
+    print("   (Each definition is hashed over name + description + inputSchema;")
+    print("    the pins are stored, not shown — a rug pull changes the hash.)")
 
     print("\n2) A week later the server self-updated. Diff it against the baseline:\n")
     updated = load_manifest(fixture("payments-rugpulled.json"))
