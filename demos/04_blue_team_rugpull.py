@@ -16,12 +16,18 @@ def main() -> None:
 
     trusted = load_manifest(fixture("payments-trusted.json"))
     baseline = build_baseline(trusted)
-    print(f"\n1) Pinned a baseline of '{trusted.get('name')}' when it was trusted "
-          f"({len(baseline['tools'])} tool definition(s)):")
-    # Show a display fingerprint derived straight from each public tool object in
-    # the manifest — never a pinned digest — so nothing sensitive is printed.
+    server_name = trusted.get("name")
+    tool_count = len(baseline["tools"])
+    # NOTE: the values below are the *public* MCP server name and per-tool
+    # display fingerprints (a fresh blake2s over public tool metadata) — no
+    # credential is ever printed. CodeQL's clear-text-logging heuristic taints
+    # the whole loaded manifest of a payments-themed fixture; these suppressions
+    # mark the acknowledged false positives.
+    print(f"\n1) Pinned a baseline of '{server_name}' when it was trusted "  # codeql[py/clear-text-logging-sensitive-data]
+          f"({tool_count} tool definition(s)):")
     for tool in trusted.get("tools", []):
-        print(f"     {tool.get('name', ''):<16} {fingerprint_of(tool)}…")
+        fp = fingerprint_of(tool)
+        print(f"     {tool.get('name', ''):<16} {fp}…")  # codeql[py/clear-text-logging-sensitive-data]
 
     print("\n2) A week later the server self-updated. Diff it against the baseline:\n")
     updated = load_manifest(fixture("payments-rugpulled.json"))
