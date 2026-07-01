@@ -1,0 +1,14 @@
+{
+  "name": "half-ok",
+  "transport": {
+    "type": "stdio"
+  },
+  "capabilities": {
+    "tools": {}
+  },
+  "tools": [
+    {
+      "name": "t"
+    }
+  ]
+}

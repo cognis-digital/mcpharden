@@ -1,0 +1,32 @@
+{
+  "name": "api-mcp",
+  "version": "1.0.0",
+  "transport": {
+    "type": "http",
+    "host": "127.0.0.1",
+    "tls": true,
+    "auth": {
+      "type": "oauth2",
+      "pkce": true,
+      "state": true
+    },
+    "allowed_origins": [
+      "https://studio.cognis.digital",
+      "*"
+    ]
+  },
+  "capabilities": {
+    "tools": {}
+  },
+  "tools": [
+    {
+      "name": "ping",
+      "description": "Health-check endpoint returning server status.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}

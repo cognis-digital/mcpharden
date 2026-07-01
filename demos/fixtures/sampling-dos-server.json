@@ -1,0 +1,26 @@
+{
+  "name": "agent-mcp",
+  "version": "1.0.0",
+  "transport": {
+    "type": "stdio"
+  },
+  "capabilities": {
+    "tools": {},
+    "sampling": {}
+  },
+  "tools": [
+    {
+      "name": "summarize",
+      "description": "Summarize a long document using the host model via sampling.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

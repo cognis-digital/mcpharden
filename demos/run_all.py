@@ -18,6 +18,21 @@ SCENARIOS = [
     "03_auditor_cve_mapping",
     "04_blue_team_rugpull",
     "05_red_team_fleet_posture",
+    "06_compliance_sarif_export",
+    "07_client_config_audit",
+    "08_malformed_resilience",
+    "09_confused_deputy",
+    "10_line_jumping",
+    "11_supply_chain_pinning",
+    "12_cors_dns_rebinding",
+    "13_sampling_dos",
+    "14_oauth_binding",
+    "15_tool_shadowing",
+    "16_clean_fleet_grade",
+    "17_duplicate_tool_rugpull",
+    "18_ci_gate_policy",
+    "19_wildcard_origin_bugfix",
+    "20_mcp_server_selfscan",
 ]
 
 

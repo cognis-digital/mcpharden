@@ -128,6 +128,14 @@ def _server_findings(name: str, srv: Dict[str, Any]) -> List[Finding]:
 
 def audit_config(doc: Dict[str, Any], source: str = "<config>") -> Report:
     """Audit a parsed MCP client config document."""
+    if not isinstance(doc, dict):
+        kind = type(doc).__name__
+        return Report(source=source, server_name="0 server(s)", findings=[Finding(
+            "config.malformed", "high",
+            f"MCP client config root must be a JSON object, got a JSON {kind}.",
+            source,
+            "Pass a Claude Desktop / Cursor / Cline / VS Code MCP config (an object "
+            "with an 'mcpServers' or 'servers' block).")])
     servers = _iter_servers(doc)
     findings: List[Finding] = []
     if not servers:
@@ -143,8 +151,16 @@ def audit_config(doc: Dict[str, Any], source: str = "<config>") -> Report:
 
 
 def audit_config_path(path: str) -> Report:
+    if os.path.isdir(path):
+        raise ValueError(f"{path} is a directory, not an MCP client config file")
     with open(path, "r", encoding="utf-8") as fh:
-        doc = json.load(fh)
+        raw = fh.read()
+    if not raw.strip():
+        raise ValueError(f"MCP client config {path} is empty")
+    try:
+        doc = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON in {path}: {exc}") from exc
     return audit_config(doc, source=path)
 
 

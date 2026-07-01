@@ -1,0 +1,8 @@
+{
+  "name": "wrong-types",
+  "transport": 8080,
+  "capabilities": [
+    "tools"
+  ],
+  "tools": "not-a-list"
+}

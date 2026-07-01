@@ -29,7 +29,7 @@ Real, reproducible output from the tool — runs offline:
 
 ```console
 $ mcpharden-emit --version
-mcpharden 0.4.0
+mcpharden 0.5.0
 ```
 
 ```console
@@ -64,7 +64,7 @@ options:
 
 ```console
 $ mcpharden-emit rules
-mcpharden 0.4.0 — 40 detection rules
+mcpharden 0.5.0 — 52 detection rules
 ====================================================================
 [CRIT] transport.bind_all                 HTTP transport bound to all interfaces.
 [HIGH] transport.no_tls                   Network transport without TLS.
@@ -235,13 +235,13 @@ walkthrough, threat model, and diagram: **[docs/POSTURE.md](docs/POSTURE.md)**.
 
 ## Demos
 
-Five runnable, **offline** scenarios — one per audience — that drive the real
-`mcpharden` API against the bundled sample manifests in
+**Twenty** runnable, **offline** scenarios — by audience and by attack class —
+that drive the real `mcpharden` API against the bundled sample manifests in
 [`demos/fixtures/`](demos/fixtures/). Each prints narrated output and exits 0, so
 they double as smoke tests. Full walkthrough: **[docs/DEMOS.md](docs/DEMOS.md)**.
 
 ```bash
-PYTHONUTF8=1 python demos/run_all.py                     # all five, end to end
+PYTHONUTF8=1 python demos/run_all.py                     # all twenty, end to end
 PYTHONUTF8=1 python demos/05_red_team_fleet_posture.py   # or just one
 ```
 
@@ -252,6 +252,21 @@ PYTHONUTF8=1 python demos/05_red_team_fleet_posture.py   # or just one
 | 3 | [`03_auditor_cve_mapping.py`](demos/03_auditor_cve_mapping.py) | Security auditors / compliance | Tie every finding to a named MCP attack class + real CVE, and emit SARIF. |
 | 4 | [`04_blue_team_rugpull.py`](demos/04_blue_team_rugpull.py) | Blue team / incident response | Pin what you approved, then catch the silent rug-pull (mutated + added tools). |
 | 5 | [`05_red_team_fleet_posture.py`](demos/05_red_team_fleet_posture.py) | Red team / attack-surface review | Find the cross-server risks (shared secret, tool collision, lateral movement) a per-server audit can't see. |
+| 6 | [`06_compliance_sarif_export.py`](demos/06_compliance_sarif_export.py) | Compliance / pipeline | Scan a directory and emit SARIF 2.1.0 for GitHub code-scanning. |
+| 7 | [`07_client_config_audit.py`](demos/07_client_config_audit.py) | End users / IT admins | Audit the `mcpServers` block in your Claude Desktop / Cursor / VS Code config. |
+| 8 | [`08_malformed_resilience.py`](demos/08_malformed_resilience.py) | Tooling / robustness | One broken manifest never aborts the scan. |
+| 9 | [`09_confused_deputy.py`](demos/09_confused_deputy.py) | Identity / auth architects | Token passthrough collapses the auth boundary (MCP-TPT-01). |
+| 10 | [`10_line_jumping.py`](demos/10_line_jumping.py) | Human reviewers | ANSI/control-char instructions hidden from the eye but read by the model (MCP-LJ-01). |
+| 11 | [`11_supply_chain_pinning.py`](demos/11_supply_chain_pinning.py) | Supply-chain / DevSecOps | Unpinned `npx`/`uvx` = run the attacker's release (MCP-SC-01); pin to clear it. |
+| 12 | [`12_cors_dns_rebinding.py`](demos/12_cors_dns_rebinding.py) | Network / infra security | Wildcard CORS + bind-all + no-TLS = a DNS-rebinding target (MCP-SSE-01). |
+| 13 | [`13_sampling_dos.py`](demos/13_sampling_dos.py) | FinOps / abuse prevention | Unbounded sampling is a medium-severity credit-drain a high gate ignores (MCP-SAMP-01). |
+| 14 | [`14_oauth_binding.py`](demos/14_oauth_binding.py) | OAuth / session security | OAuth without PKCE/state + session id in URL = takeover (MCP-OAUTH-01). |
+| 15 | [`15_tool_shadowing.py`](demos/15_tool_shadowing.py) | Multi-server trust | One server rewriting how you use another's tools (MCP-TS-01). |
+| 16 | [`16_clean_fleet_grade.py`](demos/16_clean_fleet_grade.py) | Platform owners | What "done" looks like: a hardened fleet that grades A. |
+| 17 | [`17_duplicate_tool_rugpull.py`](demos/17_duplicate_tool_rugpull.py) | Blue team (subtle) | Mutating one of two same-named tools is still caught. |
+| 18 | [`18_ci_gate_policy.py`](demos/18_ci_gate_policy.py) | CI/CD engineers | Model `--fail-on critical/high/medium` and see which servers each gate blocks. |
+| 19 | [`19_wildcard_origin_bugfix.py`](demos/19_wildcard_origin_bugfix.py) | Detector fidelity | A wildcard hidden in a list of real origins is now flagged; explicit-only stays clean. |
+| 20 | [`20_mcp_server_selfscan.py`](demos/20_mcp_server_selfscan.py) | Integrators | mcpharden as an MCP server an agent calls (JSON-RPC over stdio). |
 
 The pipeline these demos exercise — see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full version:
 

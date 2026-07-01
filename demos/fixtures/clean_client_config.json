@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-filesystem@2025.3.0",
+        "/work"
+      ]
+    },
+    "github": {
+      "command": "/usr/local/bin/github-mcp",
+      "args": [
+        "--stdio"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "remote": {
+      "type": "sse",
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer ${REMOTE_TOKEN}"
+      }
+    }
+  }
+}

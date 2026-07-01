@@ -1,0 +1,37 @@
+{
+  "name": "docs-mcp",
+  "transport": {
+    "type": "http",
+    "host": "127.0.0.1",
+    "tls": true,
+    "auth": {
+      "type": "oauth2",
+      "pkce": true,
+      "state": true
+    },
+    "allowed_origins": [
+      "https://studio.cognis.digital"
+    ]
+  },
+  "capabilities": {
+    "tools": {}
+  },
+  "tools": [
+    {
+      "name": "docs_search",
+      "description": "Search the documentation corpus and return matching passages.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

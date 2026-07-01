@@ -282,6 +282,20 @@ def _run_rules() -> int:
         ("fleet.trust_tier_inconsistency", "high", "Some network peers require auth, others don't."),
         ("fleet.tls_inconsistency", "medium", "Cleartext network peer among TLS peers."),
         ("fleet.failure_concentration", "medium", "Majority of the fleet fails its per-server audit."),
+        # MCP client-config rules (see `mcpharden configscan`):
+        ("config.unpinned_command", "high", "Client registers an unpinned npx/uvx server (supply-chain)."),
+        ("config.shell_exec", "critical", "Client launches a server via shell -c (command injection/RCE)."),
+        ("config.secret_in_env", "high", "Secret hard-coded in a server's env block in the config."),
+        ("config.cleartext_endpoint", "high", "Remote server registered over cleartext http://."),
+        ("config.remote_no_auth", "medium", "Remote server has no Authorization header / auth."),
+        ("config.auto_approve", "high", "Client blanket-auto-approves a server's tool calls."),
+        ("config.no_servers", "info", "Config has no MCP servers block."),
+        ("config.malformed", "high", "MCP client config root is not a JSON object."),
+        # Rug-pull baseline diff (see `mcpharden baseline` / `mcpharden diff`):
+        ("rugpull.tool_added", "high", "A tool appeared since the trusted baseline."),
+        ("rugpull.tool_changed", "critical", "A tool's definition mutated since baseline (rug pull)."),
+        ("rugpull.tool_removed", "medium", "A baselined tool is gone from the manifest."),
+        ("rugpull.unchanged", "info", "All baselined tool definitions match — no drift."),
     ]
     print(f"{TOOL_NAME} {TOOL_VERSION} — {len(catalogue)} detection rules")
     print("=" * 68)

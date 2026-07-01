@@ -1,0 +1,33 @@
+{
+  "name": "weather-mcp",
+  "version": "1.0.0",
+  "transport": {
+    "type": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "weather-mcp-server"
+    ]
+  },
+  "capabilities": {
+    "tools": {}
+  },
+  "tools": [
+    {
+      "name": "forecast",
+      "description": "Return the weather forecast for a latitude/longitude pair.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number"
+          },
+          "lon": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}
