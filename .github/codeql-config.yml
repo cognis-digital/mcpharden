@@ -1,0 +1,14 @@
+name: mcpharden CodeQL config
+
+# Scope analysis to the shipped package. The demos and their fixtures
+# deliberately embed sample secrets and print scan output (narration /
+# fingerprints) to illustrate detections; they are not production code and
+# would otherwise raise clear-text-logging / hardcoded-credentials noise.
+paths:
+  - mcpharden
+
+paths-ignore:
+  - demos
+  - tests
+  - ports
+  - examples

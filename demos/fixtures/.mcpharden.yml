@@ -1,0 +1,6 @@
+# Example mcpharden CI policy (see `mcpharden ci`).
+min_score: 60
+max_critical: 0
+max_high: 3
+forbid_rules: tool.shell_exec, transport.bind_all, transport.cors_wildcard
+waivers: capability.experimental

@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 # Tool identity (re-exported from the package __init__).
 TOOL_NAME = "mcpharden"
-TOOL_VERSION = "0.4.0"
+TOOL_VERSION = "0.6.0"
 
 # Severity ordering, highest first. Used for sorting + exit-code policy.
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -38,6 +38,23 @@ _DANGEROUS_VERBS = (
 # inside "payload", "run" inside "runtime", or "send" inside "sender".
 _DANGEROUS_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(v) for v in _DANGEROUS_VERBS) + r")\b",
+    re.IGNORECASE,
+)
+
+# Data-exfiltration surface: a poisoned tool description that pairs a
+# *sensitive-data source* with an *external egress sink* (send file contents to
+# a URL, POST env vars, upload ~/.ssh, etc.). Both halves must match, so a
+# benign "send an email" tool does not fire on the sink half alone.
+_EXFIL_SINK_RE = re.compile(
+    r"\b(?:send|post|upload|exfiltrate|forward|transmit|leak|report|beacon)\b"
+    r".{0,60}?\b(?:to|https?://|webhook|endpoint|remote|external|attacker|"
+    r"pastebin|discord|telegram|server)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+_EXFIL_SOURCE_RE = re.compile(
+    r"(?:\.env\b|\benv(?:ironment)? var|\bsecret|\bcredential|\bapi[_-]?key|\btoken\b|"
+    r"\bpassword|\.ssh\b|\bid_rsa\b|\bprivate key\b|~/\.aws|/etc/passwd|\bconfig file\b|"
+    r"\bfile contents?\b|\bconversation\b|\bchat history\b|\bsystem prompt\b)",
     re.IGNORECASE,
 )
 
@@ -61,6 +78,23 @@ _SECRET_RE = re.compile(
     r"|(?:\bxox[baprs]-[A-Za-z0-9\-]{8,})"
     r"|(?:\bAKIA[0-9A-Z]{12,})"
     r"|(?:\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{6,})"
+    # strategy 3 (2026 expansion): more provider token families + structured secrets.
+    r"|(?:\bAIza[0-9A-Za-z_\-]{35})"                        # Google API key
+    r"|(?:\bya29\.[0-9A-Za-z_\-]{20,})"                     # Google OAuth access token
+    r"|(?:\bsk-ant-[0-9A-Za-z_\-]{20,})"                    # Anthropic API key
+    r"|(?:\bsk-proj-[0-9A-Za-z_\-]{20,})"                   # OpenAI project key
+    r"|(?:\bhf_[0-9A-Za-z]{16,})"                           # Hugging Face token
+    r"|(?:\bglpat-[0-9A-Za-z_\-]{20,})"                     # GitLab PAT
+    r"|(?:\bnpm_[0-9A-Za-z]{20,})"                          # npm automation token
+    r"|(?:\bpypi-AgE[0-9A-Za-z_\-]{20,})"                   # PyPI upload token
+    r"|(?:\bdop_v1_[0-9a-f]{32,})"                          # DigitalOcean PAT
+    r"|(?:\bSG\.[0-9A-Za-z_\-]{16,}\.[0-9A-Za-z_\-]{16,})"  # SendGrid key
+    r"|(?:\b(?-i:AC|SK)[0-9a-f]{32}\b)"                     # Twilio SID/key (case-sensitive prefix)
+    # DSN / connection strings that carry inline credentials (user:pass@host):
+    r"|(?:\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp|amqps)://"
+    r"[^\s:@/]+:[^\s:@/]+@[^\s/]+)"
+    # PEM private key header (RSA/EC/OpenSSH/PKCS8/PGP):
+    r"|(?:-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY-----)"
 )
 
 
@@ -339,6 +373,20 @@ def _check_tools(m: Dict[str, Any], out: List[Finding]) -> None:
                 "hijack the calling agent.",
                 loc,
                 "Remove imperative/meta instructions from tool descriptions.",
+            ))
+
+        # Data-exfiltration surface: a description that directs the agent to
+        # read sensitive local material AND ship it to an attacker-controlled
+        # destination is the classic tool-poisoning exfil pattern.
+        if _EXFIL_SINK_RE.search(low_desc) and _EXFIL_SOURCE_RE.search(low_desc):
+            out.append(Finding(
+                "tool.exfiltration_surface", "high",
+                "Tool description couples reading sensitive local data with "
+                "sending it to an external destination — a data-exfiltration "
+                "surface (poisoned-tool egress channel).",
+                loc,
+                "Descriptions must not instruct the agent to read secrets/files "
+                "and forward them off-host; scope tool egress explicitly.",
             ))
 
         schema = tool.get("inputSchema") or tool.get("input_schema")

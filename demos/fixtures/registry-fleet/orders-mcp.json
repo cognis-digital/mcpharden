@@ -1,0 +1,21 @@
+{
+  "name": "orders-mcp",
+  "version": "1.4.0",
+  "transport": {"type": "stdio"},
+  "capabilities": {"tools": {}},
+  "tools": [
+    {
+      "name": "get_order",
+      "description": "Return an order by its id for the authenticated user.",
+      "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}},
+                      "required": ["id"], "additionalProperties": false}
+    },
+    {
+      "name": "cancel_order",
+      "description": "Cancel an order the user explicitly confirms.",
+      "requiresConfirmation": true,
+      "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}},
+                      "required": ["id"], "additionalProperties": false}
+    }
+  ]
+}

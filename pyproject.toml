@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cognis-mcpharden"
-version = "0.4.0"
+version = "0.6.0"
 description = "MCP server hardening linter — capability declarations, transport, tool descriptions"
 authors = [{name = "Cognis Digital", email = "suite@cognis.digital"}]
 license = {text = "LicenseRef-COCL-1.0"}

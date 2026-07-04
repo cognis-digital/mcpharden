@@ -1,0 +1,14 @@
+{
+  "name": "shipping-mcp",
+  "version": "0.1.0",
+  "transport": {"type": "stdio"},
+  "capabilities": {"tools": {}},
+  "tools": [
+    {
+      "name": "create_label",
+      "description": "Create a shipping label for an order.",
+      "inputSchema": {"type": "object", "properties": {"order_id": {"type": "string"}},
+                      "required": ["order_id"], "additionalProperties": false}
+    }
+  ]
+}

@@ -64,6 +64,66 @@ class TestDemoScenariosRun(unittest.TestCase):
         self.assertIn("All demo scenarios completed", buf.getvalue())
 
 
+class TestMultiplierDemoScenariosRun(unittest.TestCase):
+    """The 2026 capability-multiplier demos also run offline and print output."""
+
+    SCENARIOS = [
+        "30_ci_gate_policy",
+        "31_fleet_registry_rugpull",
+        "32_signed_attestation",
+        "33_junit_and_exfil",
+    ]
+
+    def test_each_scenario_runs(self):
+        import importlib
+
+        for name in self.SCENARIOS:
+            mod = importlib.import_module(name)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                mod.main()
+            self.assertTrue(buf.getvalue().strip(), f"{name} produced no output")
+
+    def test_run_multiply(self):
+        import importlib
+
+        run_multiply = importlib.import_module("run_multiply")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            run_multiply.main()
+        self.assertIn("capability-multiplier demo scenarios completed", buf.getvalue())
+
+
+class TestMultiplierFixtureFindings(unittest.TestCase):
+    """Fixtures for the new demos keep producing the narrated findings."""
+
+    def test_exfil_server_flags_exfiltration(self):
+        r = audit_path(_fx("exfil-server.json"))
+        rules = {f.rule for f in r.findings}
+        self.assertIn("tool.exfiltration_surface", rules)
+
+    def test_registry_clean_fleet_no_drift(self):
+        from mcpharden.registry import build_registry, verify_registry
+        reg = build_registry(_fx("registry-fleet"))
+        reports = verify_registry(reg, _fx("registry-fleet"))
+        rules = {f.rule for r in reports for f in r.findings}
+        self.assertEqual(rules, {"rugpull.unchanged"})
+
+    def test_registry_drifted_fleet_detects_rugpull_and_new_server(self):
+        from mcpharden.registry import build_registry, verify_registry
+        reg = build_registry(_fx("registry-fleet"))
+        reports = verify_registry(reg, _fx("registry-fleet-drifted"))
+        rules = {f.rule for r in reports for f in r.findings}
+        self.assertIn("rugpull.tool_changed", rules)
+        self.assertIn("fleet.server_unregistered", rules)
+
+    def test_ci_policy_fixture_loads(self):
+        from mcpharden.policy import load_policy
+        pol = load_policy(_fx(".mcpharden.yml"))
+        self.assertEqual(pol.max_critical, 0)
+        self.assertIn("tool.shell_exec", pol.forbid_rules)
+
+
 class TestFixtureFindings(unittest.TestCase):
     """The fixtures must keep producing the findings the demos describe."""
 
