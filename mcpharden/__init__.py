@@ -28,6 +28,18 @@ from mcpharden.posture import (
     analyze,
     summarize,
 )
+from mcpharden import report as report_formats
+from mcpharden.report import (
+    to_junit,
+    build_attestation,
+    sign_attestation,
+    verify_attestation,
+    to_attestation_json,
+)
+from mcpharden import policy
+from mcpharden.policy import Policy, GateResult, load_policy, parse_policy, evaluate
+from mcpharden import registry
+from mcpharden.registry import build_registry, verify_registry, load_registry, sign_registry
 
 __version__ = TOOL_VERSION
 
@@ -66,4 +78,21 @@ __all__ = [
     "assess",
     "analyze",
     "summarize",
+    "report_formats",
+    "to_junit",
+    "build_attestation",
+    "sign_attestation",
+    "verify_attestation",
+    "to_attestation_json",
+    "policy",
+    "Policy",
+    "GateResult",
+    "load_policy",
+    "parse_policy",
+    "evaluate",
+    "registry",
+    "build_registry",
+    "verify_registry",
+    "load_registry",
+    "sign_registry",
 ]

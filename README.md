@@ -29,19 +29,19 @@ Real, reproducible output from the tool — runs offline:
 
 ```console
 $ mcpharden-emit --version
-mcpharden 0.4.0
+mcpharden 0.6.0
 ```
 
 ```console
 $ mcpharden-emit --help
 usage: mcpharden [-h] [--version]
-                 {audit,scan,configscan,baseline,diff,posture,mcp,rules,vulndb} ...
+                 {audit,scan,configscan,baseline,diff,posture,ci,registry,mcp,rules,vulndb} ...
 
 MCP server hardening linter — audits capability declarations, transport, and
 tool descriptions.
 
 positional arguments:
-  {audit,scan,configscan,baseline,diff,posture,mcp,rules,vulndb}
+  {audit,scan,configscan,baseline,diff,posture,ci,registry,mcp,rules,vulndb}
     audit               Audit a single MCP server manifest (JSON) for
                         weaknesses.
     scan                Scan a manifest file or a directory of manifests.
@@ -52,6 +52,9 @@ positional arguments:
                         pulls.
     posture             Correlate a fleet of MCP servers: cross-server risks a
                         per-server audit can't see.
+    ci                  Policy-driven CI gate: scan and fail the build per a
+                        policy file.
+    registry            Pin or verify a fleet-wide rug-pull baseline registry.
     mcp                 Run as an MCP server (stdio JSON-RPC).
     rules               List the built-in detection rules.
     vulndb              Show the MCP vulnerability catalog (classes, CVEs,
@@ -64,7 +67,7 @@ options:
 
 ```console
 $ mcpharden-emit rules
-mcpharden 0.4.0 — 40 detection rules
+mcpharden 0.6.0 — 43 detection rules
 ====================================================================
 [CRIT] transport.bind_all                 HTTP transport bound to all interfaces.
 [HIGH] transport.no_tls                   Network transport without TLS.
@@ -233,6 +236,56 @@ inconsistency** between network peers, and **failure concentration** — then ro
 the fleet up to a single hardening grade and the one highest-leverage fix. Full
 walkthrough, threat model, and diagram: **[docs/POSTURE.md](docs/POSTURE.md)**.
 
+### CI gate — one policy file, not a single flag
+
+`--fail-on` gives one severity threshold. A real gate wants more: cap the count
+of findings per severity, require a minimum hardening score, forbid or require
+specific rules, and record reviewed exceptions (**waivers**) so a known finding
+doesn't break the build forever. Drop a `.mcpharden.yml` (or `.mcpharden.json`)
+in your repo and run:
+
+```bash
+mcpharden ci ./mcp-servers                     # auto-discovers .mcpharden.yml
+mcpharden ci ./mcp-servers --policy team.yml   # or a specific policy
+mcpharden ci ./mcp-servers --format junit      # emit a JUnit test report
+```
+
+```yaml
+# .mcpharden.yml
+min_score: 80
+max_critical: 0
+max_high: 2
+forbid_rules: tool.shell_exec, transport.bind_all
+waivers: capability.experimental
+```
+
+A policy violation exits non-zero and blocks the merge; passing prints `PASS`.
+
+### Fleet baseline registry — catch a rug-pull anywhere in the fleet
+
+`baseline`/`diff` pin **one** server. `registry` pins the **whole fleet** into a
+single, optionally HMAC-signed document, then verifies a later snapshot in one
+pass — reporting per server: unchanged, a **mutated tool** (rug pull), and an
+**unreviewed server that joined** the trust boundary.
+
+```bash
+mcpharden registry pin ./mcp-servers -o fleet.registry.json --sign-key "$KEY"
+mcpharden registry verify ./mcp-servers --registry fleet.registry.json --key "$KEY" --fail-on high
+```
+
+Signing makes the registry tamper-evident: editing the pinned baselines to hide
+a rug-pull invalidates the signature and `verify` refuses to load it.
+
+### Signed attestations — provable, tamper-evident scan evidence
+
+Any scan can emit an in-toto-style **attestation** bound to the exact finding
+set, HMAC-signed so a verifier can prove which manifests were scanned, by which
+tool version, with what outcome — and detect any later edit.
+
+```bash
+mcpharden scan ./mcp-servers --format attestation --sign-key "$KEY" --out scan.att.json
+```
+
 ## Demos
 
 Five runnable, **offline** scenarios — one per audience — that drive the real
@@ -243,6 +296,7 @@ they double as smoke tests. Full walkthrough: **[docs/DEMOS.md](docs/DEMOS.md)**
 ```bash
 PYTHONUTF8=1 python demos/run_all.py                     # all five, end to end
 PYTHONUTF8=1 python demos/05_red_team_fleet_posture.py   # or just one
+PYTHONUTF8=1 python demos/run_multiply.py                # the CI-gate / registry / attestation set
 ```
 
 | # | Scenario | Audience | The point |
@@ -252,6 +306,10 @@ PYTHONUTF8=1 python demos/05_red_team_fleet_posture.py   # or just one
 | 3 | [`03_auditor_cve_mapping.py`](demos/03_auditor_cve_mapping.py) | Security auditors / compliance | Tie every finding to a named MCP attack class + real CVE, and emit SARIF. |
 | 4 | [`04_blue_team_rugpull.py`](demos/04_blue_team_rugpull.py) | Blue team / incident response | Pin what you approved, then catch the silent rug-pull (mutated + added tools). |
 | 5 | [`05_red_team_fleet_posture.py`](demos/05_red_team_fleet_posture.py) | Red team / attack-surface review | Find the cross-server risks (shared secret, tool collision, lateral movement) a per-server audit can't see. |
+| 30 | [`30_ci_gate_policy.py`](demos/30_ci_gate_policy.py) | Platform / CI engineers | Fail the build on a `.mcpharden.yml` policy (severity caps, forbid rules, waivers), not one flag. |
+| 31 | [`31_fleet_registry_rugpull.py`](demos/31_fleet_registry_rugpull.py) | Fleet operators | Pin the whole fleet into a signed registry; catch a mutated tool and an unreviewed new server at once. |
+| 32 | [`32_signed_attestation.py`](demos/32_signed_attestation.py) | Compliance / supply chain | Produce a signed, tamper-evident attestation of a scan and detect any later edit. |
+| 33 | [`33_junit_and_exfil.py`](demos/33_junit_and_exfil.py) | CI reporting / detection | Export JUnit for CI run summaries and flag a data-exfiltration tool description. |
 
 The pipeline these demos exercise — see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full version:
 
@@ -279,6 +337,8 @@ manifests plus a `SCENARIO.md` each, for use directly with `mcpharden scan`.
 - **JSON** — machine-readable findings for pipelines
 - **SARIF** — drops into GitHub code-scanning / IDE problem panes
 - **HTML** — shareable report with severity rollups
+- **JUnit** (`--format junit`) — renders next to unit tests in CI run summaries
+- **Attestation** (`--format attestation`) — in-toto-style, optionally HMAC-signed proof of a scan
 
 ## Credits / Built on
 

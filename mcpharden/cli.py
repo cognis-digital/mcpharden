@@ -20,6 +20,10 @@ from .core import (
     to_sarif,
 )
 
+# Output formats offered by audit/scan. ``junit`` and ``attestation`` are the
+# 2026 additions (CI test-report XML and a signed in-toto statement).
+_SCAN_FORMATS = ("table", "json", "sarif", "html", "junit", "attestation")
+
 _SEV_LABEL = {
     "critical": "CRIT",
     "high": "HIGH",
@@ -106,7 +110,7 @@ def _build_parser() -> argparse.ArgumentParser:
     audit = sub.add_parser(
         "audit", help="Audit a single MCP server manifest (JSON) for weaknesses.")
     audit.add_argument("manifest", help="Path to the MCP server manifest JSON.")
-    audit.add_argument("--format", choices=("table", "json", "sarif", "html"),
+    audit.add_argument("--format", choices=_SCAN_FORMATS,
                        default="table", help="Output format (default: table).")
     audit.add_argument("--min-severity", choices=tuple(SEVERITY_ORDER),
                        default="info",
@@ -114,18 +118,22 @@ def _build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--out", help="Write output to this file instead of stdout.")
     audit.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None,
                        help="Exit non-zero if a finding at/above this severity exists.")
+    audit.add_argument("--sign-key", default=None,
+                       help="HMAC key to sign a --format attestation envelope.")
 
     # scan: file OR directory (fleet), all formats.
     sc = sub.add_parser(
         "scan", help="Scan a manifest file or a directory of manifests.")
     sc.add_argument("target", help="Manifest file or directory to scan.")
-    sc.add_argument("--format", choices=("table", "json", "sarif", "html"),
+    sc.add_argument("--format", choices=_SCAN_FORMATS,
                     default="table", help="Output format (default: table).")
     sc.add_argument("--min-severity", choices=tuple(SEVERITY_ORDER), default="info",
                     help="Only report findings at or above this severity.")
     sc.add_argument("--out", help="Write output to this file instead of stdout.")
     sc.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None,
                     help="Exit non-zero if a finding at/above this severity exists.")
+    sc.add_argument("--sign-key", default=None,
+                    help="HMAC key to sign a --format attestation envelope.")
 
     # configscan: audit a real MCP *client* config (Claude Desktop / Cursor / …).
     cfg = sub.add_parser(
@@ -133,7 +141,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Audit an MCP client config (Claude Desktop/Cursor/Cline/VSCode) for risky servers.")
     cfg.add_argument("config", nargs="?",
                      help="Path to the config JSON (default: auto-detect common locations).")
-    cfg.add_argument("--format", choices=("table", "json", "sarif", "html"), default="table")
+    cfg.add_argument("--format", choices=("table", "json", "sarif", "html", "junit"), default="table")
     cfg.add_argument("--min-severity", choices=tuple(SEVERITY_ORDER), default="info")
     cfg.add_argument("--out", help="Write output to this file instead of stdout.")
     cfg.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None)
@@ -147,7 +155,7 @@ def _build_parser() -> argparse.ArgumentParser:
     df = sub.add_parser("diff", help="Diff a manifest against a baseline to detect tool rug-pulls.")
     df.add_argument("manifest", help="Path to the current MCP server manifest JSON.")
     df.add_argument("--baseline", required=True, help="Baseline JSON written by 'baseline'.")
-    df.add_argument("--format", choices=("table", "json", "sarif", "html"), default="table")
+    df.add_argument("--format", choices=("table", "json", "sarif", "html", "junit"), default="table")
     df.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None)
 
     # posture: fleet-wide cross-server correlation (collisions, shared secrets,
@@ -176,7 +184,36 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="Show the MCP vulnerability catalog (classes, CVEs, refs).")
     vdb.add_argument("--cve", help="Show entries citing this CVE (e.g. CVE-2025-54136).")
     vdb.add_argument("--id", help="Show one class by id (e.g. MCP-CI-01).")
+    vdb.add_argument("--stats", action="store_true",
+                     help="Show catalog coverage stats (classes, CVEs, detectable).")
     vdb.add_argument("--format", choices=("table", "json"), default="table")
+
+    # ci: policy-driven CI gate over a scan (thresholds, forbid/require, waivers).
+    ci = sub.add_parser(
+        "ci",
+        help="Policy-driven CI gate: scan a target and fail the build per a policy file.")
+    ci.add_argument("target", help="Manifest file or directory to scan.")
+    ci.add_argument("--policy", default=None,
+                    help="Policy file (.mcpharden.yml/.json). Default: auto-discover in CWD.")
+    ci.add_argument("--format", choices=("table", "json", "junit"), default="table",
+                    help="Gate-result output format (default: table).")
+    ci.add_argument("--out", help="Write output to this file instead of stdout.")
+
+    # registry: pin/verify a whole fleet's baselines in one signed document.
+    reg = sub.add_parser(
+        "registry",
+        help="Pin or verify a fleet-wide rug-pull baseline registry.")
+    reg_sub = reg.add_subparsers(dest="registry_command")
+    reg_pin = reg_sub.add_parser("pin", help="Pin every server under a directory into a registry.")
+    reg_pin.add_argument("target", help="Directory (or file) of MCP server manifests.")
+    reg_pin.add_argument("-o", "--out", required=True, help="Registry JSON path to write.")
+    reg_pin.add_argument("--sign-key", default=None, help="HMAC key to sign the registry.")
+    reg_ver = reg_sub.add_parser("verify", help="Verify a live fleet against a pinned registry.")
+    reg_ver.add_argument("target", help="Directory (or file) of MCP server manifests.")
+    reg_ver.add_argument("--registry", required=True, help="Registry JSON written by 'registry pin'.")
+    reg_ver.add_argument("--key", default=None, help="HMAC key to verify a signed registry.")
+    reg_ver.add_argument("--format", choices=("table", "json", "sarif", "junit"), default="table")
+    reg_ver.add_argument("--fail-on", choices=tuple(SEVERITY_ORDER), default=None)
     return p
 
 
@@ -197,17 +234,8 @@ def _run_audit(args: argparse.Namespace) -> int:
 
     report = audit_manifest(manifest, source=args.manifest)
     _apply_min_severity(report, args.min_severity)
-
-    fmt = args.format
-    if fmt == "json":
-        _emit(json.dumps(report.to_dict(), indent=2), args.out)
-    elif fmt == "sarif":
-        _emit(json.dumps(to_sarif([report]), indent=2), args.out)
-    elif fmt == "html":
-        _emit(to_html([report]), args.out)
-    else:
-        _emit(_render_table(report), args.out)
-
+    _emit_scan([report], args.format, args.out, args.fail_on,
+               getattr(args, "sign_key", None))
     return 1 if _fails_gate([report], args.fail_on) else 0
 
 
@@ -221,20 +249,37 @@ def _run_scan(args: argparse.Namespace) -> int:
     for r in reports:
         _apply_min_severity(r, args.min_severity)
 
-    fmt = args.format
-    if fmt == "json":
-        # Recompute aggregate from the (possibly severity-filtered) reports.
-        payload = scan_to_dict(args.target)
-        payload["reports"] = [r.to_dict() for r in reports]
-        _emit(json.dumps(payload, indent=2), args.out)
-    elif fmt == "sarif":
-        _emit(json.dumps(to_sarif(reports), indent=2), args.out)
-    elif fmt == "html":
-        _emit(to_html(reports), args.out)
-    else:
-        _emit(_render_scan_table(reports), args.out)
-
+    _emit_scan(reports, args.format, args.out, args.fail_on,
+               getattr(args, "sign_key", None), target=args.target)
     return 1 if _fails_gate(reports, args.fail_on) else 0
+
+
+def _emit_scan(reports: List[Report], fmt: str, out: Optional[str],
+               fail_on: Optional[str], sign_key: Optional[str],
+               target: Optional[str] = None) -> None:
+    """Serialize scan/audit reports in any supported format (incl. junit /
+    signed attestation)."""
+    if fmt == "json":
+        if target is not None:
+            payload = scan_to_dict(target)
+            payload["reports"] = [r.to_dict() for r in reports]
+        else:
+            payload = reports[0].to_dict() if reports else {}
+        _emit(json.dumps(payload, indent=2), out)
+    elif fmt == "sarif":
+        _emit(json.dumps(to_sarif(reports), indent=2), out)
+    elif fmt == "html":
+        _emit(to_html(reports), out)
+    elif fmt == "junit":
+        from .report import to_junit
+        _emit(to_junit(reports, fail_on=fail_on), out)
+    elif fmt == "attestation":
+        from .report import to_attestation_json
+        _emit(to_attestation_json(reports, key=sign_key), out)
+    elif len(reports) == 1 and target is None:
+        _emit(_render_table(reports[0]), out)
+    else:
+        _emit(_render_scan_table(reports), out)
 
 
 def _run_rules() -> int:
@@ -257,6 +302,7 @@ def _run_rules() -> int:
         ("tool.no_description", "medium", "Tool has no description."),
         ("tool.thin_description", "low", "Tool description is too short."),
         ("tool.injection_in_description", "critical", "Instruction-smuggling in description."),
+        ("tool.exfiltration_surface", "high", "Description reads sensitive data and sends it off-host (exfil)."),
         ("tool.danger_no_schema", "high", "Side-effecting tool with no inputSchema."),
         ("tool.danger_no_confirm", "medium", "Side-effecting tool without confirmation."),
         ("tool.schema_open", "medium", "inputSchema additionalProperties=true."),
@@ -282,6 +328,9 @@ def _run_rules() -> int:
         ("fleet.trust_tier_inconsistency", "high", "Some network peers require auth, others don't."),
         ("fleet.tls_inconsistency", "medium", "Cleartext network peer among TLS peers."),
         ("fleet.failure_concentration", "medium", "Majority of the fleet fails its per-server audit."),
+        # Fleet baseline registry (see `mcpharden registry`):
+        ("fleet.server_unregistered", "high", "A live server was never pinned in the registry."),
+        ("fleet.server_missing", "medium", "A pinned server is absent from the live fleet."),
     ]
     print(f"{TOOL_NAME} {TOOL_VERSION} — {len(catalogue)} detection rules")
     print("=" * 68)
@@ -292,6 +341,29 @@ def _run_rules() -> int:
 
 def _run_vulndb(args: argparse.Namespace) -> int:
     from . import vulndb
+    if getattr(args, "stats", False):
+        detectable = sum(1 for e in vulndb.CATALOG if e.detect_rule)
+        by_sev = {s: sum(1 for e in vulndb.CATALOG if e.severity == s)
+                  for s in SEVERITY_ORDER}
+        stats = {
+            "classes": len(vulndb.CATALOG),
+            "cves": len(vulndb.all_cves()),
+            "statically_detectable": detectable,
+            "runtime_only": len(vulndb.CATALOG) - detectable,
+            "by_severity": by_sev,
+        }
+        if args.format == "json":
+            print(json.dumps(stats, indent=2))
+            return 0
+        print(f"{TOOL_NAME} {TOOL_VERSION} — vulndb coverage")
+        print("=" * 48)
+        print(f"  classes ................. {stats['classes']}")
+        print(f"  CVEs / advisories ....... {stats['cves']}")
+        print(f"  statically detectable ... {stats['statically_detectable']}")
+        print(f"  runtime/operational ..... {stats['runtime_only']}")
+        for s in SEVERITY_ORDER:
+            print(f"  {s:<10} ............. {by_sev[s]}")
+        return 0
     if args.cve:
         entries = vulndb.by_cve(args.cve)
     elif args.id:
@@ -324,6 +396,9 @@ def _emit_report(report: Report, fmt: str, out) -> None:
         _emit(json.dumps(to_sarif([report]), indent=2), out)
     elif fmt == "html":
         _emit(to_html([report]), out)
+    elif fmt == "junit":
+        from .report import to_junit
+        _emit(to_junit([report]), out)
     else:
         _emit(_render_table(report), out)
 
@@ -409,6 +484,100 @@ def _run_posture(args: argparse.Namespace) -> int:
     return rc
 
 
+def _run_ci(args: argparse.Namespace) -> int:
+    from . import policy as _policy
+    from . import posture as _posture
+
+    policy_path = args.policy or _policy.discover_policy(".")
+    if not policy_path:
+        print("error: no policy file given and none auto-discovered "
+              f"({', '.join(_policy.DEFAULT_POLICY_NAMES)}); pass --policy.",
+              file=sys.stderr)
+        return 2
+    try:
+        pol = _policy.load_policy(policy_path)
+        reports = scan(args.target)
+    except (OSError, ManifestError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    fleet_grade = None
+    if pol.min_grade is not None:
+        try:
+            fleet_grade = _posture.assess(args.target).grade
+        except (OSError, ManifestError):
+            fleet_grade = None
+    result = _policy.evaluate(reports, pol, fleet_grade=fleet_grade)
+
+    if args.format == "json":
+        _emit(json.dumps({"policy": pol.to_dict(), "result": result.to_dict()},
+                         indent=2), args.out)
+    elif args.format == "junit":
+        from .report import to_junit
+        _emit(to_junit(reports, fail_on=pol.fail_on, suite_name="mcpharden-ci"),
+              args.out)
+    else:
+        lines = [f"MCPHARDEN CI gate — {args.target}",
+                 f"policy: {policy_path}", "=" * 60]
+        st = result.stats
+        c = st["counts"]
+        lines.append(f"servers={st['servers']}  critical={c['critical']} "
+                     f"high={c['high']} medium={c['medium']} low={c['low']}"
+                     + (f"  grade={fleet_grade}" if fleet_grade else ""))
+        if result.waived:
+            lines.append(f"waived: {', '.join(sorted(set(result.waived)))}")
+        lines.append("-" * 60)
+        if result.violations:
+            lines.append(f"POLICY VIOLATIONS ({len(result.violations)}):")
+            for v in result.violations:
+                lines.append(f"  - {v}")
+        else:
+            lines.append("No policy violations.")
+        lines.append("=" * 60)
+        lines.append("RESULT: " + ("PASS" if result.passed else "FAIL"))
+        _emit("\n".join(lines), args.out)
+
+    return 0 if result.passed else 1
+
+
+def _run_registry(args: argparse.Namespace) -> int:
+    from . import registry as _registry
+    cmd = getattr(args, "registry_command", None)
+    if cmd == "pin":
+        try:
+            reg = _registry.build_registry(args.target)
+        except (OSError, ManifestError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        doc = _registry.sign_registry(reg, args.sign_key) if args.sign_key else reg
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=2, sort_keys=True)
+        signed = " (signed)" if args.sign_key else ""
+        print(f"pinned {reg['server_count']} server(s) into registry{signed} -> {args.out}",
+              file=sys.stderr)
+        return 0
+    if cmd == "verify":
+        try:
+            reg = _registry.load_registry(args.registry, key=args.key)
+            reports = _registry.verify_registry(reg, args.target)
+        except (OSError, ManifestError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        fmt = args.format
+        if fmt == "json":
+            _emit(json.dumps({"reports": [r.to_dict() for r in reports]}, indent=2), None)
+        elif fmt == "sarif":
+            _emit(json.dumps(to_sarif(reports), indent=2), None)
+        elif fmt == "junit":
+            from .report import to_junit
+            _emit(to_junit(reports, fail_on=args.fail_on, suite_name="mcpharden-registry"), None)
+        else:
+            _emit(_render_scan_table(reports), None)
+        return 1 if _fails_gate(reports, args.fail_on) else 0
+    print("error: registry needs a subcommand: 'pin' or 'verify'", file=sys.stderr)
+    return 2
+
+
 def _run_mcp() -> int:
     from .mcp_server import run_mcp_server
     run_mcp_server()
@@ -434,6 +603,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _run_diff(args)
     if args.command == "posture":
         return _run_posture(args)
+    if args.command == "ci":
+        return _run_ci(args)
+    if args.command == "registry":
+        return _run_registry(args)
     if args.command == "mcp":
         return _run_mcp()
     parser.print_help(sys.stderr)

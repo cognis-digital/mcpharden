@@ -1,0 +1,14 @@
+{
+  "name": "catalog-mcp",
+  "version": "3.0.0",
+  "transport": {"type": "stdio"},
+  "capabilities": {"tools": {}},
+  "tools": [
+    {
+      "name": "search_products",
+      "description": "Search the product catalog by keyword and return matches.",
+      "inputSchema": {"type": "object", "properties": {"q": {"type": "string"}},
+                      "required": ["q"], "additionalProperties": false}
+    }
+  ]
+}

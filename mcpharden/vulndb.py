@@ -173,6 +173,28 @@ CATALOG: tuple[VulnClass, ...] = (
         "transport.bind_all",
         "Bind to 127.0.0.1 unless remote access is required, and front with authn/z.",
     ),
+    VulnClass(
+        "MCP-EXFIL-01", "Data exfiltration via poisoned tool description", "high",
+        "A tool description directs the agent to read sensitive local data "
+        "(env vars, .ssh, files, secrets) and forward it to an external "
+        "destination — a covert egress channel hidden inside tool metadata.",
+        (),
+        ("Invariant Labs tool-poisoning research", "OWASP MCP Tool Poisoning"),
+        "tool.exfiltration_surface",
+        "Descriptions must never instruct the agent to read secrets/files and "
+        "send them off-host; constrain and monitor each tool's egress.",
+    ),
+    VulnClass(
+        "MCP-FLEET-01", "Unreviewed / drifted server across the trusted fleet", "high",
+        "A server joins the trusted fleet without being reviewed, or a pinned "
+        "server's tool definitions drift after approval; a fleet baseline "
+        "registry catches both across every server at once.",
+        ("CVE-2025-54136",),
+        ("TrueFoundry MCPoison analysis", "Vulnerable MCP Project"),
+        "fleet.server_unregistered",
+        "Pin the whole fleet into a signed baseline registry; verify every "
+        "server against it in CI and re-review any added/drifted server.",
+    ),
 )
 
 BY_ID = {v.id: v for v in CATALOG}
